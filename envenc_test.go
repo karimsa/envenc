@@ -1,16 +1,17 @@
 package envenc
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
-	"encoding/json"
 
 	"gopkg.in/yaml.v2"
 )
 
 type badCipher struct{}
+
 func (badCipher) Encrypt(str string) (string, error) {
-	return "encrypt("+str+")", nil
+	return "encrypt(" + str + ")", nil
 }
 func (badCipher) Decrypt(str string) (string, error) {
 	str = str[len("encrypt("):]
@@ -66,7 +67,7 @@ func TestNewFromYAML(t *testing.T) {
 	handler, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data: []byte("hello: world\nthis: is\na: test"),
+			Data:   []byte("hello: world\nthis: is\na: test"),
 		},
 	)
 	if err != nil {

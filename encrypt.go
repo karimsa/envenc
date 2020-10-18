@@ -1,8 +1,8 @@
 package envenc
 
 import (
-	"crypto/cipher"
 	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
 
@@ -40,7 +40,7 @@ func newSymmetricCipher(passphrase []byte) (*simpleSymmetricCipher, error) {
 		passphrase,
 		salt,
 		3,
-		32 * 1024,
+		32*1024,
 		4,
 		32,
 	)
@@ -89,6 +89,6 @@ func pkcs7Pad(data []byte, blkSize int) []byte {
 }
 
 func pkcs7Unpad(padded []byte) []byte {
-	padSize := 1+int(padded[len(padded) - 1])
+	padSize := 1 + int(padded[len(padded)-1])
 	return padded[:len(padded)-padSize]
 }

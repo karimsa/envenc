@@ -1,12 +1,12 @@
 package envenc
 
 import (
-	"fmt"
 	"bytes"
+	"encoding/hex"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
-	"encoding/hex"
-	"strconv"
 )
 
 func TestPadding(t *testing.T) {

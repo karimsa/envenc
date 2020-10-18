@@ -57,28 +57,28 @@ import (
 
 type NewEnvOptions struct {
 	Format string
-	Data []byte
+	Data   []byte
 }
 
 type EnvFile struct {
-	rawValues map[string]interface{}
+	rawValues    map[string]interface{}
 	updatedPaths [][]string
 }
 
-func parseDotEnv(data []byte, values map[string]interface{}) error {
+func parseDotEnv(data []byte, values *map[string]interface{}) error {
 	return fmt.Errorf("Not implemented yet")
 }
 
 func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
-	values := make(map[string]interface{})
+	var values map[string]interface{}
 
 	switch format {
 	case "yaml":
-		return values, yaml.Unmarshal(data, values)
+		return values, yaml.Unmarshal(data, &values)
 	case "json":
-		return values, json.Unmarshal(data, values)
+		return values, json.Unmarshal(data, &values)
 	case ".env":
-		return values, parseDotEnv(data, values)
+		return values, parseDotEnv(data, &values)
 	}
 
 	return values, fmt.Errorf("Unrecognized env file format: %s", format)
@@ -91,7 +91,7 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	}
 
 	return &EnvFile{
-		rawValues: rawValues,
+		rawValues:    rawValues,
 		updatedPaths: make([][]string, 0),
 	}, nil
 }
@@ -140,7 +140,7 @@ func encryptPaths(input, output map[string]interface{}, currentPath string, path
 				if err != nil {
 					return err
 				}
-			
+
 			default:
 				return fmt.Errorf("Unexpected %T at path: %s (%#v)", value, keyPath, value)
 			}
