@@ -9,22 +9,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// type EncryptionStrategy int
-
-// const (
-// 	// StrategySymmetric refers to utilizing symmetric encryption
-// 	// (i.e. a single password to encrypt/decrypt data)
-// 	StrategySymmetric EncryptionStrategy = iota
-
-// 	// StrategyAsymmetric refers to using an RSA private/public keypair
-// 	// for encryption
-// 	StrategyAsymmetric
-
-// 	// StrategyKeyring refers to using a keyring with many RSA private/public
-// 	// keypairs
-// 	StrategyKeyring
-// )
-
 // ...
 
 // type EncryptOptions struct {
@@ -112,24 +96,35 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	}, nil
 }
 
-func encryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool) error {
+type simpleCipher interface {
+	Encrypt(raw string) (string, error)
+	Decrypt(encrypted string) (string, error)
+}
+
+func encryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool, sc simpleCipher) error {
 	for key, value := range input {
 		keyPath := currentPath + "." + key
 		strVal, isStr := value.(string)
 
 		if isStr {
 			if _, ok := paths[keyPath]; ok {
-				output[key] = "(encrypted)"
+				encrypted, err := sc.Encrypt(strVal)
+				if err != nil {
+					return err
+				}
+				output[key] = encrypted
 			} else {
 				fmt.Printf("skipping encrypt for %s (not in %#v)\n", keyPath, paths)
 				output[key] = strVal
 			}
 		} else {
 			switch v := value.(type) {
-			case int:
-				output[key] = v
+			case float64:
+				fmt.Printf("copying value %s\n", keyPath)
+				output[key] = value
 			case bool:
-				output[key] = v
+				fmt.Printf("copying value %s\n", keyPath)
+				output[key] = value
 
 			case map[string]interface{}:
 				outputMap := make(map[string]interface{})
@@ -140,10 +135,14 @@ func encryptPaths(input, output map[string]interface{}, currentPath string, path
 					outputMap,
 					keyPath,
 					paths,
+					sc,
 				)
 				if err != nil {
 					return err
 				}
+			
+			default:
+				return fmt.Errorf("Unexpected %T at path: %s (%#v)", value, keyPath, value)
 			}
 		}
 	}

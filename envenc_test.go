@@ -8,6 +8,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type badCipher struct{}
+func (badCipher) Encrypt(str string) (string, error) {
+	return "encrypt("+str+")", nil
+}
+func (badCipher) Decrypt(str string) (string, error) {
+	str = str[len("encrypt("):]
+	str = str[:len(str)-1]
+	return str, nil
+}
+
 func TestEncryptPaths(t *testing.T) {
 	var input map[string]interface{}
 	err := json.Unmarshal([]byte(`{
@@ -33,6 +43,7 @@ func TestEncryptPaths(t *testing.T) {
 		map[string]bool{
 			".top": true,
 		},
+		&badCipher{},
 	)
 	if err != nil {
 		t.Error(err.Error())
@@ -46,7 +57,7 @@ func TestEncryptPaths(t *testing.T) {
 	}
 	strData := string(data)
 
-	if strData != `{"nested":{"a":{"b":"stuff"},"c":"d"},"top":"(encrypted)"}` {
+	if strData != `{"nested":{"a":{"b":"stuff"},"c":"d","e":1},"top":"encrypt(level)"}` {
 		t.Error(fmt.Sprintf("Incorrectly encrypted: %s", strData))
 	}
 }
