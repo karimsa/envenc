@@ -10,10 +10,10 @@ import (
 
 type badCipher struct{}
 
-func (badCipher) Encrypt(str string) (string, error) {
+func (*badCipher) Encrypt(str string) (string, error) {
 	return "encrypt(" + str + ")", nil
 }
-func (badCipher) Decrypt(str string) (string, error) {
+func (*badCipher) Decrypt(str string) (string, error) {
 	str = str[len("encrypt("):]
 	str = str[:len(str)-1]
 	return str, nil
@@ -68,8 +68,16 @@ func TestNewFromYAML(t *testing.T) {
 		NewEnvOptions{
 			Format: "yaml",
 			Data:   []byte("hello: world\nthis: is\na: test"),
+			Cipher: &badCipher{},
 		},
 	)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	// should trigger encryption
+	err = handler.Set(".hello", "world")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -82,11 +90,14 @@ func TestNewFromYAML(t *testing.T) {
 	}
 
 	var initMap map[string]interface{}
-	err = yaml.Unmarshal(data, initMap)
+	err = yaml.Unmarshal(data, &initMap)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	fmt.Printf("init: %#v\n", initMap)
+	if fmt.Sprintf("%#v", initMap) != `map[string]interface {}{"a":"test", "hello":"encrypt(world)", "this":"is"}` {
+		t.Error(fmt.Errorf("Unexpected exported yaml env: %#v", initMap))
+		return
+	}
 }

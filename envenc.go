@@ -1,69 +1,13 @@
 package envenc
 
 import (
-	// "crypto/aes"
-	// "crypto/cipher"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v2"
+	"github.com/karimsa/envenc/dotenv"
 )
-
-// ...
-
-// type EncryptOptions struct {
-// 	// EncryptedData should be the last saved encrypted version of
-// 	// this config file
-// 	EncryptedData map[string]string
-
-// 	// PlainDataRaw is the plaintext key->value map, without changes made
-// 	// (it should be the raw unen)
-// 	PlainDataRaw map[string]string
-
-// 	// PlainDataUpdated is the plaintext key->value map, with changes made
-// 	// from edits
-// 	PlainDataUpdated map[string]string
-
-// 	// Cipher is used to perform encryption/decryption on individual values
-// 	Cipher cipher.Block
-// }
-
-// func encrypt(options EncryptOptions) (error, map[string]string) {
-// 	result := make(map[string]string, len(options.PlainData))
-
-// 	for key, value := range options.PlainDataUpdated {
-// 		encValue, encKeyExists := options.EncryptedData[key]
-// 		oldValue, oldValueExists := options.PlainDataRaw[key]
-
-// 		if encKeyExists != oldValueExists {
-// 			if encKeyExists {
-// 				return fmt.Errorf("%s does not exist in the plain unedited map, but exists in the encrypted map", key), nil
-// 			} else {
-// 				return fmt.Errorf("%s does not exist in the encrypted map, but exists in the plain unedited map", key), nil
-// 			}
-// 		}
-
-// 		if !oldValueExists || oldValue == value {
-// 			result[key] = value
-// 		} else {
-// 			// ...
-
-// 			results[key] = ""
-// 		}
-// 	}
-
-// 	return nil, result
-// }
-
-type NewEnvOptions struct {
-	Format string
-	Data   []byte
-}
-
-type EnvFile struct {
-	rawValues    map[string]interface{}
-	updatedPaths [][]string
-}
 
 func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
 	var values map[string]interface{}
@@ -74,22 +18,23 @@ func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
 	case "json":
 		return values, json.Unmarshal(data, &values)
 	case ".env":
-		return values, parseDotEnv(data, &values)
+		return values, dotenv.Unmarshal(data, &values)
 	}
 
 	return values, fmt.Errorf("Unrecognized env file format: %s", format)
 }
 
-func New(options NewEnvOptions) (*EnvFile, error) {
-	rawValues, err := parseEnvFile(options.Format, options.Data)
-	if err != nil {
-		return nil, err
+func exportEnvFile(format string, values map[string]interface{}) ([]byte, error) {
+	switch format {
+	case "yaml":
+		return yaml.Marshal(values)
+	case "json":
+		return json.Marshal(values)
+	case ".env":
+		return dotenv.Marshal(values)
 	}
 
-	return &EnvFile{
-		rawValues:    rawValues,
-		updatedPaths: make([][]string, 0),
-	}, nil
+	return nil, fmt.Errorf("Unrecognized env file format: %s", format)
 }
 
 type simpleCipher interface {
@@ -146,6 +91,72 @@ func encryptPaths(input, output map[string]interface{}, currentPath string, path
 	return nil
 }
 
+type NewEnvOptions struct {
+	Format string
+	Data   []byte
+	Cipher simpleCipher
+}
+
+type EnvFile struct {
+	rawValues    map[string]interface{}
+	updatedPaths map[string]bool
+	cipher simpleCipher
+}
+
+func New(options NewEnvOptions) (*EnvFile, error) {
+	rawValues, err := parseEnvFile(options.Format, options.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &EnvFile{
+		rawValues:    rawValues,
+		updatedPaths: make(map[string]bool),
+		cipher: options.Cipher,
+	}, nil
+}
+
+func (env *EnvFile) Set(path, value string) error {
+	if path[0] != '.' {
+		return fmt.Errorf("Invalid key path: %s", path)
+	}
+
+	targetMap := env.rawValues
+	pathBits := strings.Split(path, ".")[1:]
+	currentPath := "."
+
+	for _, step := range pathBits[:len(pathBits)-1] {
+		currentPath += "." + step
+		v, ok := targetMap[step]
+		if ok {
+			nextMap, isMap := v.(map[string]interface{})
+			if !isMap {
+				return fmt.Errorf("Non-map value (of type %T) found at %s: %#v", v, currentPath, v)
+			}
+			targetMap = nextMap
+		} else {
+			nextMap := make(map[string]interface{})
+			targetMap[step] = nextMap
+			targetMap = nextMap
+		}
+	}
+
+	targetMap[pathBits[len(pathBits)-1]] = value
+	env.updatedPaths[path] = true
+	return nil
+}
+
 func (env *EnvFile) Export(format string) ([]byte, error) {
-	return nil, fmt.Errorf("fah blah: %s", format)
+	encrypted := make(map[string]interface{})
+	err := encryptPaths(
+		env.rawValues,
+		encrypted,
+		"",
+		env.updatedPaths,
+		env.cipher,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return exportEnvFile(format, encrypted)
 }
