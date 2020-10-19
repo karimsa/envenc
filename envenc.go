@@ -65,10 +65,6 @@ type EnvFile struct {
 	updatedPaths [][]string
 }
 
-func parseDotEnv(data []byte, values *map[string]interface{}) error {
-	return fmt.Errorf("Not implemented yet")
-}
-
 func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
 	var values map[string]interface{}
 
