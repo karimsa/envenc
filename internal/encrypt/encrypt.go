@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -23,19 +24,11 @@ const (
 	// StrategyKeyring refers to using a keyring with many RSA private/public
 	// keypairs
 	StrategyKeyring
+
+	saltLength = 16
 )
 
-type SimpleSymmetricCipher struct {
-	cipherHandle cipher.Block
-}
-
-func NewSymmetricCipher(passphrase []byte) (*SimpleSymmetricCipher, error) {
-	salt := make([]byte, 16)
-	_, err := rand.Read(salt)
-	if err != nil {
-		return nil, err
-	}
-
+func initCipher(passphrase, salt []byte) (cipher.Block, error) {
 	key := argon2.Key(
 		passphrase,
 		salt,
@@ -44,18 +37,31 @@ func NewSymmetricCipher(passphrase []byte) (*SimpleSymmetricCipher, error) {
 		4,
 		32,
 	)
+	return aes.NewCipher(key)
+}
 
-	cipherHandle, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
+type SimpleSymmetricCipher struct {
+	pass []byte
+}
+
+func NewSymmetricCipher(pass []byte) SimpleSymmetricCipher {
+	return SimpleSymmetricCipher{
+		pass: pass,
 	}
-
-	return &SimpleSymmetricCipher{
-		cipherHandle: cipherHandle,
-	}, nil
 }
 
 func (s *SimpleSymmetricCipher) Encrypt(str string) (string, error) {
+	salt := make([]byte, saltLength)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := initCipher(s.pass, salt)
+	if err != nil {
+		return "", err
+	}
+
 	raw := pkcs7Pad([]byte(str), aes.BlockSize)
 	encrypted := make([]byte, aes.BlockSize+len(raw))
 	iv := encrypted[:aes.BlockSize]
@@ -63,9 +69,11 @@ func (s *SimpleSymmetricCipher) Encrypt(str string) (string, error) {
 		return "", err
 	}
 
-	cbc := cipher.NewCBCEncrypter(s.cipherHandle, iv)
+	cbc := cipher.NewCBCEncrypter(block, iv)
 	cbc.CryptBlocks(encrypted[aes.BlockSize:], raw)
-	return hex.EncodeToString(encrypted), nil
+	return hex.EncodeToString(
+		append(encrypted, salt...),
+	), nil
 }
 
 func (s *SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
@@ -74,8 +82,16 @@ func (s *SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
 		return "", err
 	}
 
+	salt := buffer[len(buffer)-saltLength:]
+	buffer = buffer[:len(buffer)-saltLength]
+
+	block, err := initCipher(s.pass, salt)
+	if err != nil {
+		return "", err
+	}
+
 	text := make([]byte, len(buffer)-aes.BlockSize)
-	cbc := cipher.NewCBCDecrypter(s.cipherHandle, buffer[:aes.BlockSize])
+	cbc := cipher.NewCBCDecrypter(block, buffer[:aes.BlockSize])
 	cbc.CryptBlocks(text, buffer[aes.BlockSize:])
 	return string(pkcs7Unpad(text)), nil
 }
@@ -89,6 +105,7 @@ func pkcs7Pad(data []byte, blkSize int) []byte {
 }
 
 func pkcs7Unpad(padded []byte) []byte {
+	fmt.Printf("debug: %s\n", padded)
 	padSize := 1 + int(padded[len(padded)-1])
 	return padded[:len(padded)-padSize]
 }

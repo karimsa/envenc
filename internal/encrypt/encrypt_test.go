@@ -34,11 +34,7 @@ func TestPadding(t *testing.T) {
 
 func TestSymmetricEncrypt(t *testing.T) {
 	data := "foobar - some hello world text blah blah"
-	cipher, err := NewSymmetricCipher([]byte("testing"))
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	cipher := NewSymmetricCipher([]byte("testing"))
 
 	encrypted, err := cipher.Encrypt(data)
 	if err != nil {
