@@ -37,12 +37,12 @@ func exportEnvFile(format string, values map[string]interface{}) ([]byte, error)
 	return nil, fmt.Errorf("Unrecognized env file format: %s", format)
 }
 
-type simpleCipher interface {
+type SimpleCipher interface {
 	Encrypt(raw string) (string, error)
 	Decrypt(encrypted string) (string, error)
 }
 
-func encryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool, sc simpleCipher) error {
+func encryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool, sc SimpleCipher) error {
 	for key, value := range input {
 		keyPath := currentPath + "." + key
 		strVal, isStr := value.(string)
@@ -94,13 +94,13 @@ func encryptPaths(input, output map[string]interface{}, currentPath string, path
 type NewEnvOptions struct {
 	Format string
 	Data   []byte
-	Cipher simpleCipher
+	Cipher SimpleCipher
 }
 
 type EnvFile struct {
 	rawValues    map[string]interface{}
 	updatedPaths map[string]bool
-	cipher simpleCipher
+	cipher SimpleCipher
 }
 
 func New(options NewEnvOptions) (*EnvFile, error) {
@@ -114,6 +114,10 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 		updatedPaths: make(map[string]bool),
 		cipher: options.Cipher,
 	}, nil
+}
+
+func (env *EnvFile) Touch(path string) {
+	env.updatedPaths[path] = true
 }
 
 func (env *EnvFile) Set(path, value string) error {
@@ -142,7 +146,7 @@ func (env *EnvFile) Set(path, value string) error {
 	}
 
 	targetMap[pathBits[len(pathBits)-1]] = value
-	env.updatedPaths[path] = true
+	env.Touch(path)
 	return nil
 }
 
