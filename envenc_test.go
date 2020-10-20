@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-
-	"gopkg.in/yaml.v2"
 )
 
 type badCipher struct{}
@@ -17,6 +15,36 @@ func (*badCipher) Decrypt(str string) (string, error) {
 	str = str[len("encrypt("):]
 	str = str[:len(str)-1]
 	return str, nil
+}
+
+func TestDecryptPaths(t *testing.T) {
+	text, err := (&badCipher{}).Encrypt("level")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	input := map[string]interface{}{
+		"top": text,
+		"a": "b",
+	}
+	output := map[string]interface{}{}
+
+	err = encryptOrDecryptPaths(
+		input,
+		output,
+		"",
+		map[string]bool{
+			".top": true,
+		},
+		func(val string) (string, error) {
+			return (&badCipher{}).Decrypt(val)
+		},
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 }
 
 func TestEncryptPaths(t *testing.T) {
@@ -37,14 +65,16 @@ func TestEncryptPaths(t *testing.T) {
 	}
 
 	output := make(map[string]interface{})
-	err = encryptPaths(
+	err = encryptOrDecryptPaths(
 		input,
 		output,
 		"",
 		map[string]bool{
 			".top": true,
 		},
-		&badCipher{},
+		func(val string) (string, error) {
+			return (&badCipher{}).Encrypt(val)
+		},
 	)
 	if err != nil {
 		t.Error(err.Error())
@@ -67,7 +97,7 @@ func TestNewFromYAML(t *testing.T) {
 	handler, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data:   []byte("hello: world\nthis: is\na: test"),
+			Data:   []byte("hello: world\na: test"),
 			Cipher: &badCipher{},
 		},
 	)
@@ -77,27 +107,56 @@ func TestNewFromYAML(t *testing.T) {
 	}
 
 	// should trigger encryption
-	err = handler.Set(".hello", "world")
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
+	handler.Touch(".hello")
 
 	data, err := handler.Export("yaml")
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
+	if "hello: encrypt(world)\na: test\n" != string(data) && "a: test\nhello: encrypt(world)\n" != string(data) {
+		t.Error(fmt.Errorf("Unexpected exported yaml env:\n%s", data))
+		return
+	}
 
-	var initMap map[string]interface{}
-	err = yaml.Unmarshal(data, &initMap)
+	handler, err = Open(
+		OpenEnvOptions{
+			Format: "yaml",
+			Data:   data,
+			Cipher: &badCipher{},
+			SecurePaths: map[string]bool {
+				".hello": true,
+			},
+		},
+	)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	if fmt.Sprintf("%#v", initMap) != `map[string]interface {}{"a":"test", "hello":"encrypt(world)", "this":"is"}` {
-		t.Error(fmt.Errorf("Unexpected exported yaml env: %#v", initMap))
+	handler.Touch(".hello")
+
+	// Test re-export
+	data, err = handler.Export("yaml")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if "hello: encrypt(world)\na: test\n" != string(data) && "a: test\nhello: encrypt(world)\n" != string(data) {
+		t.Error(fmt.Errorf("Unexpected re-exported data:\n%s", data))
+		return
+	}
+
+	// Test export raw
+	data, err = handler.exportWithMapper("yaml", func(val string) (string, error) {
+		return val, nil
+	})
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if "hello: world\na: test\n" != string(data) && "a: test\nhello: world\n" != string(data) {
+		t.Error(fmt.Errorf("Unexpected re-exported data:\n%s", data))
 		return
 	}
 }
