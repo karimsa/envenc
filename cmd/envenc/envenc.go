@@ -7,14 +7,14 @@ import (
 
 	"github.com/howeyc/gopass"
 	"github.com/karimsa/envenc"
-	"github.com/karimsa/envenc/internal/logger"
 	"github.com/karimsa/envenc/internal/encrypt"
+	"github.com/karimsa/envenc/internal/logger"
 	"github.com/urfave/cli"
 )
 
 var (
 	flagLogLevel = &cli.StringFlag{
-		Name: "log-level",
+		Name:  "log-level",
 		Usage: "Increase logging verbosity (none, info, debug)",
 		Value: "none",
 	}

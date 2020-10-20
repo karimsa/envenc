@@ -51,9 +51,9 @@ type EnvFile struct {
 }
 
 type NewEnvOptions struct {
-	Format string
-	Data   []byte
-	Cipher SimpleCipher
+	Format   string
+	Data     []byte
+	Cipher   SimpleCipher
 	LogLevel logger.LogLevel
 }
 
@@ -67,7 +67,7 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	logger.Debugf("Log level set to %d\n", options.LogLevel)
 
 	return &EnvFile{
-		logger: logger,
+		logger:       logger,
 		rawValues:    rawValues,
 		updatedPaths: make(map[string]bool),
 		cipher:       options.Cipher,
@@ -79,7 +79,7 @@ type OpenEnvOptions struct {
 	Data        []byte
 	Cipher      SimpleCipher
 	SecurePaths map[string]bool
-	LogLevel logger.LogLevel
+	LogLevel    logger.LogLevel
 }
 
 func Open(options OpenEnvOptions) (*EnvFile, error) {
@@ -90,7 +90,7 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 
 	rawValues := make(map[string]interface{})
 	env := &EnvFile{
-		logger: logger.New(options.LogLevel),
+		logger:       logger.New(options.LogLevel),
 		rawValues:    rawValues,
 		updatedPaths: make(map[string]bool),
 		cipher:       options.Cipher,

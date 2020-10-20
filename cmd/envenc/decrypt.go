@@ -74,7 +74,7 @@ var cmdDecrypt = cli.Command{
 			Data:        data,
 			Cipher:      cipher,
 			SecurePaths: securePaths,
-			LogLevel: logLevel,
+			LogLevel:    logLevel,
 		})
 		if err != nil {
 			return err

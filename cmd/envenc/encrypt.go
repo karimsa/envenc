@@ -70,9 +70,9 @@ var cmdEncrypt = cli.Command{
 		}
 
 		envFile, err := envenc.New(envenc.NewEnvOptions{
-			Format: format,
-			Data:   data,
-			Cipher: cipher,
+			Format:   format,
+			Data:     data,
+			Cipher:   cipher,
 			LogLevel: logLevel,
 		})
 		if err != nil {
