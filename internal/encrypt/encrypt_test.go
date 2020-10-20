@@ -1,4 +1,4 @@
-package envenc
+package encrypt
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ func TestPadding(t *testing.T) {
 
 func TestSymmetricEncrypt(t *testing.T) {
 	data := "foobar - some hello world text blah blah"
-	cipher, err := newSymmetricCipher([]byte("testing"))
+	cipher, err := NewSymmetricCipher([]byte("testing"))
 	if err != nil {
 		t.Error(err)
 		return

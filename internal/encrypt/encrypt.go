@@ -1,4 +1,4 @@
-package envenc
+package encrypt
 
 import (
 	"crypto/aes"
@@ -25,11 +25,11 @@ const (
 	StrategyKeyring
 )
 
-type simpleSymmetricCipher struct {
+type SimpleSymmetricCipher struct {
 	cipherHandle cipher.Block
 }
 
-func newSymmetricCipher(passphrase []byte) (*simpleSymmetricCipher, error) {
+func NewSymmetricCipher(passphrase []byte) (*SimpleSymmetricCipher, error) {
 	salt := make([]byte, 16)
 	_, err := rand.Read(salt)
 	if err != nil {
@@ -50,12 +50,12 @@ func newSymmetricCipher(passphrase []byte) (*simpleSymmetricCipher, error) {
 		return nil, err
 	}
 
-	return &simpleSymmetricCipher{
+	return &SimpleSymmetricCipher{
 		cipherHandle: cipherHandle,
 	}, nil
 }
 
-func (s *simpleSymmetricCipher) Encrypt(str string) (string, error) {
+func (s *SimpleSymmetricCipher) Encrypt(str string) (string, error) {
 	raw := pkcs7Pad([]byte(str), aes.BlockSize)
 	encrypted := make([]byte, aes.BlockSize+len(raw))
 	iv := encrypted[:aes.BlockSize]
@@ -68,7 +68,7 @@ func (s *simpleSymmetricCipher) Encrypt(str string) (string, error) {
 	return hex.EncodeToString(encrypted), nil
 }
 
-func (s *simpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
+func (s *SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
 	buffer, err := hex.DecodeString(encrypted)
 	if err != nil {
 		return "", err
