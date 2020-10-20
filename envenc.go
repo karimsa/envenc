@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v2"
 	"github.com/karimsa/envenc/dotenv"
+	"gopkg.in/yaml.v2"
 )
 
 func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
@@ -55,7 +55,7 @@ func encryptOrDecryptPaths(input, output map[string]interface{}, currentPath str
 				}
 				output[key] = encrypted
 			} else {
-				fmt.Printf("skipping encrypt for %s (not in %#v)\n", keyPath, paths)
+				// fmt.Printf("skipping encrypt for %s (not in %#v)\n", keyPath, paths)
 				output[key] = strVal
 			}
 		} else {
@@ -94,7 +94,7 @@ func encryptOrDecryptPaths(input, output map[string]interface{}, currentPath str
 type EnvFile struct {
 	rawValues    map[string]interface{}
 	updatedPaths map[string]bool
-	cipher SimpleCipher
+	cipher       SimpleCipher
 }
 
 type NewEnvOptions struct {
@@ -112,14 +112,14 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	return &EnvFile{
 		rawValues:    rawValues,
 		updatedPaths: make(map[string]bool),
-		cipher: options.Cipher,
+		cipher:       options.Cipher,
 	}, nil
 }
 
 type OpenEnvOptions struct {
-	Format string
-	Data   []byte
-	Cipher SimpleCipher
+	Format      string
+	Data        []byte
+	Cipher      SimpleCipher
 	SecurePaths map[string]bool
 }
 
@@ -139,7 +139,6 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 			return options.Cipher.Decrypt(encrypted)
 		},
 	)
-	fmt.Printf("encryptedMap = %#v\nraw = %#v\n", encryptedValues, rawValues)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +146,7 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 	return &EnvFile{
 		rawValues:    rawValues,
 		updatedPaths: make(map[string]bool),
-		cipher: options.Cipher,
+		cipher:       options.Cipher,
 	}, nil
 }
 
@@ -203,5 +202,11 @@ func (env *EnvFile) exportWithMapper(format string, mapValue func(string) (strin
 func (env *EnvFile) Export(format string) ([]byte, error) {
 	return env.exportWithMapper(format, func(val string) (string, error) {
 		return env.cipher.Encrypt(val)
+	})
+}
+
+func (env *EnvFile) UnsafeRawExport(format string) ([]byte, error) {
+	return env.exportWithMapper(format, func(val string) (string, error) {
+		return val, nil
 	})
 }

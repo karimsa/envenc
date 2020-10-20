@@ -1,9 +1,9 @@
 package dotenv
 
 import (
-	"fmt"
 	"bufio"
 	"bytes"
+	"fmt"
 	"strings"
 )
 

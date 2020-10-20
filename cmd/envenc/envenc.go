@@ -1,15 +1,15 @@
 package main
 
 import (
-	"os"
 	"fmt"
-	"strings"
 	"io/ioutil"
+	"os"
+	"strings"
 
-	"github.com/urfave/cli"
 	"github.com/howeyc/gopass"
 	"github.com/karimsa/envenc"
 	"github.com/karimsa/envenc/internal/encrypt"
+	"github.com/urfave/cli"
 )
 
 const (
@@ -21,49 +21,76 @@ func getFormatFromPath(path string) string {
 	return ext
 }
 
+func getCipher(ctx *cli.Context) (envenc.SimpleCipher, error) {
+	strategy := ctx.String("strategy")
+
+	if strategy == "symmetric" {
+		// 1) Read from flags
+		if pass := ctx.String("unsafe-passphrase"); len(pass) != 0 {
+			return encrypt.NewSymmetricCipher([]byte(pass)), nil
+		}
+
+		// 2) Read from env
+		if pass := os.Getenv("ENVENC_PASSPHRASE"); len(pass) != 0 {
+			return encrypt.NewSymmetricCipher([]byte(pass)), nil
+		}
+
+		// 3) Read from stdin
+		fmt.Fprintf(os.Stderr, "Passphrase: ")
+		pass, err := gopass.GetPasswdMasked()
+		if err != nil {
+			return nil, err
+		}
+		return encrypt.NewSymmetricCipher(pass), nil
+	}
+
+	return nil, fmt.Errorf("Unsupported strategy: %s", strategy)
+}
+
 func main() {
 	app := &cli.App{
-		Name: "envenc",
+		Name:  "envenc",
 		Usage: "Manage secrets in config files.",
 		Commands: []cli.Command{
 			{
-				Name: "encrypt",
+				Name:  "encrypt",
 				Usage: "Encrypt values in a given file",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name: "in",
-						Usage: "Path to the input file",
+						Name:     "in",
+						Usage:    "Path to the input file",
 						Required: true,
 					},
 					&cli.StringFlag{
-						Name: "out",
-						Usage: "Path to the output file",
+						Name:     "out",
+						Usage:    "Path to the output file",
 						Required: true,
 					},
 					&cli.StringFlag{
-						Name: "format",
+						Name:  "format",
 						Usage: "Format of the input and output files (json, yaml, .env)",
 						Value: "",
 					},
 					&cli.StringFlag{
-						Name: "strategy",
+						Name:  "strategy",
 						Usage: "Encryption/decryption type (symmetric, asymmetric, or keyring)",
 						Value: "symmetric",
 					},
 					&cli.StringFlag{
-						Name: "unsafe-passphrase",
+						Name:  "unsafe-passphrase",
 						Usage: "Unsafely pass the passphrase for symmetric encryption",
 						Value: "",
 					},
 					&cli.StringSliceFlag{
-						Name: "key",
-						Usage: "Target key path to find secure value",
+						Name:     "key",
+						Usage:    "Target key path to find secure value",
 						Required: true,
 					},
 				},
 				Action: func(ctx *cli.Context) error {
 					format := ctx.String("format")
 					inPath := ctx.String("in")
+					inputPaths := ctx.StringSlice("key")
 
 					if format == "" {
 						format = getFormatFromPath(inPath)
@@ -74,41 +101,21 @@ func main() {
 						return err
 					}
 
-					var cipher envenc.SimpleCipher
-					strategy := ctx.String("strategy")
-
-					switch strategy {
-					case "symmetric":
-						passphrase := []byte(ctx.String("unsafe-passphrase"))
-						if len(passphrase) == 0 {
-							passphrase = []byte(os.Getenv("ENVENC_PASSPHRASE"))
-						}
-						if len(passphrase) == 0 {
-							fmt.Fprintf(os.Stderr, "Passphrase: ")
-							passphrase, err = gopass.GetPasswdMasked()
-							if err != nil {
-								return err
-							}
-						}
-						cipher, err = encrypt.NewSymmetricCipher(passphrase)
-						if err != nil {
-							return err
-						}
-
-					default:
-						return fmt.Errorf("Unsupported encryption strategy given: %s", strategy)
+					cipher, err := getCipher(ctx)
+					if err != nil {
+						return err
 					}
 
 					envFile, err := envenc.New(envenc.NewEnvOptions{
 						Format: format,
-						Data: data,
+						Data:   data,
 						Cipher: cipher,
 					})
 					if err != nil {
 						return err
 					}
 
-					for _, path := range ctx.StringSlice("key") {
+					for _, path := range inputPaths {
 						envFile.Touch(path)
 					}
 
@@ -131,7 +138,7 @@ func main() {
 					// For in-place edits, overwrite the file
 					outFileMode := os.O_EXCL
 					if outPath == inPath {
-						outFileMode = os.O_WRONLY|os.O_TRUNC
+						outFileMode = os.O_WRONLY | os.O_TRUNC
 					}
 
 					outFile, err = os.OpenFile(outPath, outFileMode, 0755)
@@ -148,6 +155,81 @@ func main() {
 					if err != nil {
 						return err
 					}
+
+					return nil
+				},
+			},
+			{
+				Name:  "decrypt",
+				Usage: "Decrypt values from a config file",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "in",
+						Usage:    "Path to the input file",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "Format of the input and output files (json, yaml, .env)",
+						Value: "",
+					},
+					&cli.StringFlag{
+						Name:  "strategy",
+						Usage: "Encryption/decryption type (symmetric, asymmetric, or keyring)",
+						Value: "symmetric",
+					},
+					&cli.StringFlag{
+						Name:  "unsafe-passphrase",
+						Usage: "Unsafely pass the passphrase for symmetric encryption",
+						Value: "",
+					},
+					&cli.StringSliceFlag{
+						Name:     "key",
+						Usage:    "Target key path to find secure value",
+						Required: true,
+					},
+				},
+				Action: func(ctx *cli.Context) error {
+					format := ctx.String("format")
+					inPath := ctx.String("in")
+					inputPaths := ctx.StringSlice("key")
+
+					if format == "" {
+						format = getFormatFromPath(inPath)
+					}
+
+					data, err := ioutil.ReadFile(inPath)
+					if err != nil {
+						return err
+					}
+
+					cipher, err := getCipher(ctx)
+					if err != nil {
+						return err
+					}
+
+					securePaths := make(map[string]bool, len(inputPaths))
+					for _, path := range inputPaths {
+						securePaths[path] = true
+					}
+
+					envFile, err := envenc.Open(envenc.OpenEnvOptions{
+						Format:      format,
+						Data:        data,
+						Cipher:      cipher,
+						SecurePaths: securePaths,
+					})
+					if err != nil {
+						return err
+					}
+
+					buff, err := envFile.UnsafeRawExport(format)
+					if err != nil {
+						return err
+					}
+
+					// For decryption, always write to stderr
+					fmt.Fprintf(os.Stderr, string(buff))
 
 					return nil
 				},

@@ -5,7 +5,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -50,7 +49,7 @@ func NewSymmetricCipher(pass []byte) SimpleSymmetricCipher {
 	}
 }
 
-func (s *SimpleSymmetricCipher) Encrypt(str string) (string, error) {
+func (s SimpleSymmetricCipher) Encrypt(str string) (string, error) {
 	salt := make([]byte, saltLength)
 	_, err := rand.Read(salt)
 	if err != nil {
@@ -76,7 +75,7 @@ func (s *SimpleSymmetricCipher) Encrypt(str string) (string, error) {
 	), nil
 }
 
-func (s *SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
+func (s SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
 	buffer, err := hex.DecodeString(encrypted)
 	if err != nil {
 		return "", err
@@ -105,7 +104,6 @@ func pkcs7Pad(data []byte, blkSize int) []byte {
 }
 
 func pkcs7Unpad(padded []byte) []byte {
-	fmt.Printf("debug: %s\n", padded)
 	padSize := 1 + int(padded[len(padded)-1])
 	return padded[:len(padded)-padSize]
 }

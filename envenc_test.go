@@ -26,7 +26,7 @@ func TestDecryptPaths(t *testing.T) {
 
 	input := map[string]interface{}{
 		"top": text,
-		"a": "b",
+		"a":   "b",
 	}
 	output := map[string]interface{}{}
 
@@ -124,7 +124,7 @@ func TestNewFromYAML(t *testing.T) {
 			Format: "yaml",
 			Data:   data,
 			Cipher: &badCipher{},
-			SecurePaths: map[string]bool {
+			SecurePaths: map[string]bool{
 				".hello": true,
 			},
 		},
