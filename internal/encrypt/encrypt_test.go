@@ -73,3 +73,18 @@ func TestBadPass(t *testing.T) {
 	}
 	fmt.Printf("Decryption threw: %s\n", err)
 }
+
+func TestSignVerify(t *testing.T) {
+	if signature := sign([]byte("testkey"), []byte("some data")); !verify([]byte("testkey"), []byte("some data"), signature) {
+		t.Error(fmt.Errorf("Failed to perform basic signing"))
+		return
+	}
+	if signature := sign([]byte("testkey"), []byte("some data")); verify([]byte("badkey"), []byte("some data"), signature) {
+		t.Error(fmt.Errorf("Verified with bad key"))
+		return
+	}
+	if signature := sign([]byte("testkey"), []byte("some data")); verify([]byte("testkey"), []byte("bad data"), signature) {
+		t.Error(fmt.Errorf("Verified with bad data"))
+		return
+	}
+}
