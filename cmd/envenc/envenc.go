@@ -63,11 +63,13 @@ func main() {
 				},
 				Action: func(ctx *cli.Context) error {
 					format := ctx.String("format")
+					inPath := ctx.String("in")
+
 					if format == "" {
-						format = getFormatFromPath(ctx.String("in"))
+						format = getFormatFromPath(inPath)
 					}
 
-					data, err := ioutil.ReadFile(ctx.String("in"))
+					data, err := ioutil.ReadFile(inPath)
 					if err != nil {
 						return err
 					}
@@ -126,7 +128,13 @@ func main() {
 						return nil
 					}
 
-					outFile, err = os.OpenFile(outPath, os.O_EXCL, 0755)
+					// For in-place edits, overwrite the file
+					outFileMode := os.O_EXCL
+					if outPath == inPath {
+						outFileMode = os.O_WRONLY|os.O_TRUNC
+					}
+
+					outFile, err = os.OpenFile(outPath, outFileMode, 0755)
 					if err != nil {
 						return err
 					}
