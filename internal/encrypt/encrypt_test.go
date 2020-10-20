@@ -58,3 +58,18 @@ func TestSymmetricEncrypt(t *testing.T) {
 		return
 	}
 }
+
+func TestBadPass(t *testing.T) {
+	encrypted, err := NewSymmetricCipher([]byte("testing")).Encrypt("some test text")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	decrypted, err := NewSymmetricCipher([]byte("bad pass")).Decrypt(encrypted)
+	if err == nil {
+		t.Error(fmt.Errorf("Decryption should have failed: %s", decrypted))
+		return
+	}
+	fmt.Printf("Decryption threw: %s\n", err)
+}

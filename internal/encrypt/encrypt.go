@@ -75,10 +75,20 @@ func (s SimpleSymmetricCipher) Encrypt(str string) (string, error) {
 	), nil
 }
 
-func (s SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
+func (s SimpleSymmetricCipher) Decrypt(encrypted string) (decrypted string, err error) {
+	defer func() {
+		if r := recover(); err == nil && r != nil {
+			if e, isErr := r.(error); isErr {
+				err = e
+			} else {
+				panic(r)
+			}
+		}
+	}()
+
 	buffer, err := hex.DecodeString(encrypted)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	salt := buffer[len(buffer)-saltLength:]
@@ -86,13 +96,15 @@ func (s SimpleSymmetricCipher) Decrypt(encrypted string) (string, error) {
 
 	block, err := initCipher(s.pass, salt)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	text := make([]byte, len(buffer)-aes.BlockSize)
 	cbc := cipher.NewCBCDecrypter(block, buffer[:aes.BlockSize])
 	cbc.CryptBlocks(text, buffer[aes.BlockSize:])
-	return string(pkcs7Unpad(text)), nil
+	decrypted = string(pkcs7Unpad(text))
+
+	return
 }
 
 func pkcs7Pad(data []byte, blkSize int) []byte {
