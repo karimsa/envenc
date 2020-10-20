@@ -30,7 +30,19 @@ func TestDecryptPaths(t *testing.T) {
 	}
 	output := map[string]interface{}{}
 
-	err = encryptOrDecryptPaths(
+	env, err := New(
+		NewEnvOptions{
+			Format: "yaml",
+			Data:   []byte{},
+			Cipher: &badCipher{},
+		},
+	)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	err = env.encryptOrDecryptPaths(
 		input,
 		output,
 		"",
@@ -64,8 +76,20 @@ func TestEncryptPaths(t *testing.T) {
 		return
 	}
 
+	env, err := New(
+		NewEnvOptions{
+			Format: "yaml",
+			Data:   []byte{},
+			Cipher: &badCipher{},
+		},
+	)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
 	output := make(map[string]interface{})
-	err = encryptOrDecryptPaths(
+	err = env.encryptOrDecryptPaths(
 		input,
 		output,
 		"",

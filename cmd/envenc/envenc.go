@@ -7,8 +7,17 @@ import (
 
 	"github.com/howeyc/gopass"
 	"github.com/karimsa/envenc"
+	"github.com/karimsa/envenc/internal/logger"
 	"github.com/karimsa/envenc/internal/encrypt"
 	"github.com/urfave/cli"
+)
+
+var (
+	flagLogLevel = &cli.StringFlag{
+		Name: "log-level",
+		Usage: "Increase logging verbosity (none, info, debug)",
+		Value: "none",
+	}
 )
 
 func getFormatFromPath(path string) string {
@@ -42,6 +51,22 @@ func getCipher(ctx *cli.Context) (envenc.SimpleCipher, error) {
 	return nil, fmt.Errorf("Unsupported strategy: %s", strategy)
 }
 
+func getLogLevel(ctx *cli.Context) (logger.LogLevel, error) {
+	level := ctx.String("log-level")
+	switch level {
+	case "":
+		fallthrough
+	case "none":
+		return logger.LevelNone, nil
+	case "info":
+		return logger.LevelInfo, nil
+	case "debug":
+		return logger.LevelDebug, nil
+	default:
+		return logger.LogLevel(-1), fmt.Errorf("Unrecognized log level: %s", level)
+	}
+}
+
 func main() {
 	app := &cli.App{
 		Name:  "envenc",
@@ -49,6 +74,7 @@ func main() {
 		Commands: []cli.Command{
 			cmdEncrypt,
 			cmdDecrypt,
+			cmdEdit,
 		},
 	}
 	err := app.Run(os.Args)

@@ -38,6 +38,7 @@ var cmdDecrypt = cli.Command{
 			Usage:    "Target key path to find secure value",
 			Required: true,
 		},
+		flagLogLevel,
 	},
 	Action: func(ctx *cli.Context) error {
 		format := ctx.String("format")
@@ -63,11 +64,17 @@ var cmdDecrypt = cli.Command{
 			securePaths[path] = true
 		}
 
+		logLevel, err := getLogLevel(ctx)
+		if err != nil {
+			return err
+		}
+
 		envFile, err := envenc.Open(envenc.OpenEnvOptions{
 			Format:      format,
 			Data:        data,
 			Cipher:      cipher,
 			SecurePaths: securePaths,
+			LogLevel: logLevel,
 		})
 		if err != nil {
 			return err

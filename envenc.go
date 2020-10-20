@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/karimsa/envenc/dotenv"
+	"github.com/karimsa/envenc/internal/logger"
 	"gopkg.in/yaml.v2"
 )
 
@@ -42,7 +43,71 @@ type SimpleCipher interface {
 	Decrypt(encrypted string) (string, error)
 }
 
-func encryptOrDecryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool, mapValue func(string) (string, error)) error {
+type EnvFile struct {
+	logger       logger.Logger
+	rawValues    map[string]interface{}
+	updatedPaths map[string]bool
+	cipher       SimpleCipher
+}
+
+type NewEnvOptions struct {
+	Format string
+	Data   []byte
+	Cipher SimpleCipher
+	LogLevel logger.LogLevel
+}
+
+func New(options NewEnvOptions) (*EnvFile, error) {
+	rawValues, err := parseEnvFile(options.Format, options.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	logger := logger.New(options.LogLevel)
+	logger.Debugf("Log level set to %d\n", options.LogLevel)
+
+	return &EnvFile{
+		logger: logger,
+		rawValues:    rawValues,
+		updatedPaths: make(map[string]bool),
+		cipher:       options.Cipher,
+	}, nil
+}
+
+type OpenEnvOptions struct {
+	Format      string
+	Data        []byte
+	Cipher      SimpleCipher
+	SecurePaths map[string]bool
+	LogLevel logger.LogLevel
+}
+
+func Open(options OpenEnvOptions) (*EnvFile, error) {
+	encryptedValues, err := parseEnvFile(options.Format, options.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	rawValues := make(map[string]interface{})
+	env := &EnvFile{
+		logger: logger.New(options.LogLevel),
+		rawValues:    rawValues,
+		updatedPaths: make(map[string]bool),
+		cipher:       options.Cipher,
+	}
+
+	return env, env.encryptOrDecryptPaths(
+		encryptedValues,
+		rawValues,
+		"",
+		options.SecurePaths,
+		func(encrypted string) (string, error) {
+			return options.Cipher.Decrypt(encrypted)
+		},
+	)
+}
+
+func (env *EnvFile) encryptOrDecryptPaths(input, output map[string]interface{}, currentPath string, paths map[string]bool, mapValue func(string) (string, error)) error {
 	for key, value := range input {
 		keyPath := currentPath + "." + key
 		strVal, isStr := value.(string)
@@ -53,25 +118,27 @@ func encryptOrDecryptPaths(input, output map[string]interface{}, currentPath str
 				if err != nil {
 					return err
 				}
+
+				env.logger.Debugf("Encrypting value at: %s", keyPath)
 				output[key] = encrypted
 			} else {
-				// fmt.Printf("skipping encrypt for %s (not in %#v)\n", keyPath, paths)
+				env.logger.Debugf("Skipping encrypt at: %s", keyPath)
 				output[key] = strVal
 			}
 		} else {
 			switch v := value.(type) {
 			case float64:
-				fmt.Printf("copying value %s\n", keyPath)
+				env.logger.Debugf("Copying value at: %s", keyPath)
 				output[key] = value
 			case bool:
-				fmt.Printf("copying value %s\n", keyPath)
+				env.logger.Debugf("Copying value at: %s", keyPath)
 				output[key] = value
 
 			case map[string]interface{}:
 				outputMap := make(map[string]interface{})
 				output[key] = outputMap
 
-				err := encryptOrDecryptPaths(
+				err := env.encryptOrDecryptPaths(
 					v,
 					outputMap,
 					keyPath,
@@ -89,65 +156,6 @@ func encryptOrDecryptPaths(input, output map[string]interface{}, currentPath str
 	}
 
 	return nil
-}
-
-type EnvFile struct {
-	rawValues    map[string]interface{}
-	updatedPaths map[string]bool
-	cipher       SimpleCipher
-}
-
-type NewEnvOptions struct {
-	Format string
-	Data   []byte
-	Cipher SimpleCipher
-}
-
-func New(options NewEnvOptions) (*EnvFile, error) {
-	rawValues, err := parseEnvFile(options.Format, options.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	return &EnvFile{
-		rawValues:    rawValues,
-		updatedPaths: make(map[string]bool),
-		cipher:       options.Cipher,
-	}, nil
-}
-
-type OpenEnvOptions struct {
-	Format      string
-	Data        []byte
-	Cipher      SimpleCipher
-	SecurePaths map[string]bool
-}
-
-func Open(options OpenEnvOptions) (*EnvFile, error) {
-	encryptedValues, err := parseEnvFile(options.Format, options.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	rawValues := make(map[string]interface{})
-	err = encryptOrDecryptPaths(
-		encryptedValues,
-		rawValues,
-		"",
-		options.SecurePaths,
-		func(encrypted string) (string, error) {
-			return options.Cipher.Decrypt(encrypted)
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &EnvFile{
-		rawValues:    rawValues,
-		updatedPaths: make(map[string]bool),
-		cipher:       options.Cipher,
-	}, nil
 }
 
 func (env *EnvFile) Touch(path string) {
@@ -186,7 +194,7 @@ func (env *EnvFile) Set(path, value string) error {
 
 func (env *EnvFile) exportWithMapper(format string, mapValue func(string) (string, error)) ([]byte, error) {
 	encrypted := make(map[string]interface{})
-	err := encryptOrDecryptPaths(
+	err := env.encryptOrDecryptPaths(
 		env.rawValues,
 		encrypted,
 		"",
