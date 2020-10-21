@@ -75,6 +75,7 @@ func main() {
 			cmdEncrypt,
 			cmdDecrypt,
 			cmdEdit,
+			cmdSet,
 		},
 	}
 	err := app.Run(os.Args)
