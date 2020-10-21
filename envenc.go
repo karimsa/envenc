@@ -3,6 +3,7 @@ package envenc
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/karimsa/envenc/dotenv"
@@ -217,4 +218,28 @@ func (env *EnvFile) UnsafeRawExport(format string) ([]byte, error) {
 	return env.exportWithMapper(format, func(val string) (string, error) {
 		return val, nil
 	})
+}
+
+func (env *EnvFile) ExportFile(format, path string, flag int) error {
+	buff, err := env.Export(format)
+	if err != nil {
+		return err
+	}
+
+	outFile, err := os.OpenFile(path, flag|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+
+	_, err = outFile.Write(buff)
+	if err != nil {
+		return err
+	}
+
+	err = outFile.Sync()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -88,7 +88,6 @@ var cmdEncrypt = cli.Command{
 			return err
 		}
 
-		var outFile *os.File
 		outPath := ctx.String("out")
 		switch outPath {
 		case "/dev/stdout":
@@ -104,22 +103,6 @@ var cmdEncrypt = cli.Command{
 		if outPath == inPath {
 			outFileMode = os.O_WRONLY | os.O_TRUNC
 		}
-
-		outFile, err = os.OpenFile(outPath, outFileMode, 0755)
-		if err != nil {
-			return err
-		}
-
-		_, err = outFile.Write(buff)
-		if err != nil {
-			return err
-		}
-
-		err = outFile.Sync()
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return envFile.ExportFile(format, outPath, outFileMode)
 	},
 }
