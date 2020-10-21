@@ -1,24 +1,32 @@
 package envenc
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"crypto/rand"
+
+	"gopkg.in/yaml.v2"
+	"github.com/karimsa/envenc/internal/logger"
 )
 
-type badCipher struct{}
+type randCipher struct{}
 
-func (*badCipher) Encrypt(str string) (string, error) {
-	return "encrypt(" + str + ")", nil
+func (*randCipher) Encrypt(str string) (string, error) {
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b) + ":" + str, nil
 }
-func (*badCipher) Decrypt(str string) (string, error) {
-	str = str[len("encrypt("):]
-	str = str[:len(str)-1]
-	return str, nil
+func (*randCipher) Decrypt(str string) (string, error) {
+	return str[9:], nil
 }
 
 func TestDecryptPaths(t *testing.T) {
-	text, err := (&badCipher{}).Encrypt("level")
+	text, err := (&randCipher{}).Encrypt("level")
 	if err != nil {
 		t.Error(err)
 		return
@@ -34,7 +42,10 @@ func TestDecryptPaths(t *testing.T) {
 		NewEnvOptions{
 			Format: "yaml",
 			Data:   []byte{},
-			Cipher: &badCipher{},
+			Cipher: &randCipher{},
+			SecurePaths: map[string]bool{
+				".top": true,
+			},
 		},
 	)
 	if err != nil {
@@ -46,11 +57,8 @@ func TestDecryptPaths(t *testing.T) {
 		input,
 		output,
 		"",
-		map[string]bool{
-			".top": true,
-		},
-		func(val string) (string, error) {
-			return (&badCipher{}).Decrypt(val)
+		func(_, val string) (string, error) {
+			return (&randCipher{}).Decrypt(val)
 		},
 	)
 	if err != nil {
@@ -80,7 +88,10 @@ func TestEncryptPaths(t *testing.T) {
 		NewEnvOptions{
 			Format: "yaml",
 			Data:   []byte{},
-			Cipher: &badCipher{},
+			Cipher: &randCipher{},
+			SecurePaths: map[string]bool{
+				".top": true,
+			},
 		},
 	)
 	if err != nil {
@@ -93,11 +104,8 @@ func TestEncryptPaths(t *testing.T) {
 		input,
 		output,
 		"",
-		map[string]bool{
-			".top": true,
-		},
-		func(val string) (string, error) {
-			return (&badCipher{}).Encrypt(val)
+		func(_, val string) (string, error) {
+			return (&randCipher{}).Encrypt(val)
 		},
 	)
 	if err != nil {
@@ -110,10 +118,16 @@ func TestEncryptPaths(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	strData := string(data)
 
-	if strData != `{"nested":{"a":{"b":"stuff"},"c":"d","e":1},"top":"encrypt(level)"}` {
-		t.Error(fmt.Sprintf("Incorrectly encrypted: %s", strData))
+	var values map[string]interface{}
+	err = json.Unmarshal(data, &values)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if str, _ := (&randCipher{}).Decrypt(values["top"].(string)); str != "level" {
+		t.Error(fmt.Sprintf("Incorrectly encrypted: %s", string(data)))
 	}
 }
 
@@ -122,32 +136,7 @@ func TestNewFromYAML(t *testing.T) {
 		NewEnvOptions{
 			Format: "yaml",
 			Data:   []byte("hello: world\na: test"),
-			Cipher: &badCipher{},
-		},
-	)
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-
-	// should trigger encryption
-	handler.Touch(".hello")
-
-	data, err := handler.Export("yaml")
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-	if "hello: encrypt(world)\na: test\n" != string(data) && "a: test\nhello: encrypt(world)\n" != string(data) {
-		t.Error(fmt.Errorf("Unexpected exported yaml env:\n%s", data))
-		return
-	}
-
-	handler, err = Open(
-		OpenEnvOptions{
-			Format: "yaml",
-			Data:   data,
-			Cipher: &badCipher{},
+			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".hello": true,
 			},
@@ -158,7 +147,38 @@ func TestNewFromYAML(t *testing.T) {
 		return
 	}
 
-	handler.Touch(".hello")
+	data, err := handler.Export("yaml")
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	var values map[string]interface{}
+	err = yaml.Unmarshal(data, &values)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if s, _ := (&randCipher{}).Decrypt(values["hello"].(string)); values["a"].(string) != "test" || s != "world" {
+		t.Error(fmt.Errorf("Unexpected exported yaml env:\n%s", data))
+		return
+	}
+
+	handler, err = Open(
+		OpenEnvOptions{
+			Format: "yaml",
+			Data:   data,
+			Cipher: &randCipher{},
+			SecurePaths: map[string]bool{
+				".hello": true,
+			},
+		},
+	)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
 
 	// Test re-export
 	data, err = handler.Export("yaml")
@@ -166,13 +186,18 @@ func TestNewFromYAML(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	if "hello: encrypt(world)\na: test\n" != string(data) && "a: test\nhello: encrypt(world)\n" != string(data) {
-		t.Error(fmt.Errorf("Unexpected re-exported data:\n%s", data))
+	err = yaml.Unmarshal(data, &values)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if s, _ := (&randCipher{}).Decrypt(values["hello"].(string)); values["a"].(string) != "test" || s != "world" {
+		t.Error(fmt.Errorf("Unexpected exported yaml env:\n%s", data))
 		return
 	}
 
 	// Test export raw
-	data, err = handler.exportWithMapper("yaml", func(val string) (string, error) {
+	data, err = handler.exportWithMapper("yaml", func(_, val string) (string, error) {
 		return val, nil
 	})
 	if err != nil {
@@ -181,6 +206,85 @@ func TestNewFromYAML(t *testing.T) {
 	}
 	if "hello: world\na: test\n" != string(data) && "a: test\nhello: world\n" != string(data) {
 		t.Error(fmt.Errorf("Unexpected re-exported data:\n%s", data))
+		return
+	}
+}
+
+func TestDiff(t *testing.T) {
+	handler, err := New(
+		NewEnvOptions{
+			Format: "yaml",
+			Data:   []byte("hello: world\na: test\nb: stuff\n"),
+			Cipher: &randCipher{},
+			SecurePaths: map[string]bool{
+				".hello": true,
+				".a": true,
+			},
+		},
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	data, err := handler.Export("yaml")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	encryptedVals := map[string]interface{}{}
+	if err := yaml.Unmarshal(data, &encryptedVals); err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Test diffing
+	handler, err = Open(
+		OpenEnvOptions{
+			Format: "yaml",
+			Data:   data,
+			Cipher: &randCipher{},
+			SecurePaths: map[string]bool{
+				".hello": true,
+				".a": true,
+			},
+			LogLevel: logger.LevelDebug,
+		},
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	err = handler.UpdateFrom("yaml", []byte("hello: not-world\na: test\nb: stuff\n"))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	data, err = handler.Export("yaml")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	updatedVals := map[string]interface{}{}
+	if err := yaml.Unmarshal(data, &updatedVals); err != nil {
+		t.Error(err)
+		return
+	}
+
+	if updatedVals["hello"].(string) == encryptedVals["hello"].(string) {
+		t.Error(fmt.Errorf("hello encrypted value was not updated"))
+		return
+	}
+	if updatedVals["a"].(string) != encryptedVals["a"].(string) {
+		t.Error(fmt.Errorf("a encrypted value was updated even though it was not changed"))
+		return
+	}
+	if updatedVals["b"].(string) != encryptedVals["b"].(string) {
+		t.Error(fmt.Errorf("b value was updated, even though it is insecure"))
 		return
 	}
 }

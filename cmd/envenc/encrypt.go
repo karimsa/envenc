@@ -69,18 +69,20 @@ var cmdEncrypt = cli.Command{
 			return err
 		}
 
+		securePaths := make(map[string]bool, len(inputPaths))
+		for _, path := range inputPaths {
+			securePaths[path] = true
+		}
+
 		envFile, err := envenc.New(envenc.NewEnvOptions{
 			Format:   format,
 			Data:     data,
 			Cipher:   cipher,
 			LogLevel: logLevel,
+			SecurePaths: securePaths,
 		})
 		if err != nil {
 			return err
-		}
-
-		for _, path := range inputPaths {
-			envFile.Touch(path)
 		}
 
 		buff, err := envFile.Export(format)
