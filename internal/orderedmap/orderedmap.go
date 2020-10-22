@@ -1,4 +1,4 @@
-package parser
+package orderedmap
 
 import (
 	"bufio"
@@ -129,11 +129,15 @@ var (
 				if err != nil && err != io.EOF {
 					return doc, err
 				}
+				if len(line) > 0 && line[len(line)-1] == '\n' {
+					line = line[:len(line)-1]
+				}
 
 				if len(line) > 0 && line[0] != '#' {
+
 					equals := strings.IndexRune(line, '=')
 					if equals < 0 {
-						return doc, fmt.Errorf("Unexpected syntax on line %d: %s", lineNumber, line)
+						return doc, fmt.Errorf("Unexpected syntax on line %d: '%s'", lineNumber, line)
 					}
 
 					key := line[:equals]

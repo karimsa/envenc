@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/karimsa/envenc"
@@ -20,7 +19,7 @@ var cmdDecrypt = cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "format",
-			Usage: "Format of the input and output files (json, yaml, .env)",
+			Usage: "Format of the input and output files (json, yaml, dotenv)",
 			Value: "",
 		},
 		&cli.StringFlag{
@@ -49,7 +48,7 @@ var cmdDecrypt = cli.Command{
 			format = getFormatFromPath(inPath)
 		}
 
-		data, err := ioutil.ReadFile(inPath)
+		inFile, err := os.OpenFile(inPath, os.O_RDONLY, 0)
 		if err != nil {
 			return err
 		}
@@ -71,7 +70,7 @@ var cmdDecrypt = cli.Command{
 
 		envFile, err := envenc.Open(envenc.OpenEnvOptions{
 			Format:      format,
-			Data:        data,
+			Reader:      inFile,
 			Cipher:      cipher,
 			SecurePaths: securePaths,
 			LogLevel:    logLevel,

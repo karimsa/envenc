@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"fmt"
 
 	"github.com/karimsa/envenc"
 	"github.com/urfave/cli"
@@ -21,7 +21,7 @@ var cmdEdit = cli.Command{
 		},
 		&cli.StringFlag{
 			Name:  "format",
-			Usage: "Format of the input and output files (json, yaml, .env)",
+			Usage: "Format of the input and output files (json, yaml, dotenv)",
 			Value: "",
 		},
 		&cli.StringFlag{
@@ -40,10 +40,10 @@ var cmdEdit = cli.Command{
 			Required: true,
 		},
 		&cli.StringFlag{
-			Name: "editor",
-			Usage: "Text editor to open for temporary file",
+			Name:   "editor",
+			Usage:  "Text editor to open for temporary file",
 			EnvVar: "EDITOR",
-			Value: "vi",
+			Value:  "vi",
 		},
 		flagLogLevel,
 	},
@@ -57,7 +57,7 @@ var cmdEdit = cli.Command{
 			format = getFormatFromPath(inPath)
 		}
 
-		data, err := ioutil.ReadFile(inPath)
+		inFile, err := os.OpenFile(inPath, os.O_RDONLY, 0)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ var cmdEdit = cli.Command{
 
 		envFile, err := envenc.Open(envenc.OpenEnvOptions{
 			Format:      format,
-			Data:        data,
+			Reader:      inFile,
 			Cipher:      cipher,
 			SecurePaths: securePaths,
 		})
@@ -113,12 +113,12 @@ var cmdEdit = cli.Command{
 			return err
 		}
 
-		editBuffer, err := ioutil.ReadFile(tmp.Name())
+		editFile, err := os.OpenFile(tmp.Name(), os.O_RDONLY, 0)
 		if err != nil {
 			return err
 		}
 
-		err = envFile.UpdateFrom(format, editBuffer)
+		err = envFile.UpdateFrom(format, editFile)
 		if err != nil {
 			return err
 		}

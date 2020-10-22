@@ -1,43 +1,13 @@
 package envenc
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"os"
-	"strings"
 
-	"github.com/karimsa/envenc/dotenv"
 	"github.com/karimsa/envenc/internal/logger"
-	"gopkg.in/yaml.v2"
+	"github.com/karimsa/envenc/internal/orderedmap"
 )
-
-func parseEnvFile(format string, data []byte) (map[string]interface{}, error) {
-	var values map[string]interface{}
-
-	switch format {
-	case "yaml":
-		return values, yaml.Unmarshal(data, &values)
-	case "json":
-		return values, json.Unmarshal(data, &values)
-	case ".env":
-		return values, dotenv.Unmarshal(data, &values)
-	}
-
-	return values, fmt.Errorf("Unrecognized env file format: %s", format)
-}
-
-func exportEnvFile(format string, values map[string]interface{}) ([]byte, error) {
-	switch format {
-	case "yaml":
-		return yaml.Marshal(values)
-	case "json":
-		return json.Marshal(values)
-	case ".env":
-		return dotenv.Marshal(values)
-	}
-
-	return nil, fmt.Errorf("Unrecognized env file format: %s", format)
-}
 
 type SimpleCipher interface {
 	Encrypt(raw string) (string, error)
@@ -45,24 +15,24 @@ type SimpleCipher interface {
 }
 
 type EnvFile struct {
-	logger       logger.Logger
-	rawValues    map[string]interface{}
-	oldRawValues    map[string]string
-	cipher       SimpleCipher
-	securePaths map[string]bool
+	logger             logger.Logger
+	rawValues          orderedmap.OrderedMap
+	oldRawValues       map[string]string
+	cipher             SimpleCipher
+	securePaths        map[string]bool
 	lastEncryptedValue map[string]string
 }
 
 type NewEnvOptions struct {
-	Format   string
-	Data     []byte
-	Cipher   SimpleCipher
-	LogLevel logger.LogLevel
+	Format      string
+	Reader      io.Reader
+	Cipher      SimpleCipher
+	LogLevel    logger.LogLevel
 	SecurePaths map[string]bool
 }
 
 func New(options NewEnvOptions) (*EnvFile, error) {
-	rawValues, err := parseEnvFile(options.Format, options.Data)
+	rawValues, err := orderedmap.Parse(options.Format, options.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -71,35 +41,38 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	logger.Debugf("Log level set to %d\n", options.LogLevel)
 
 	return &EnvFile{
-		logger:       logger,
-		rawValues:    rawValues,
-		oldRawValues: map[string]string{},
-		cipher:       options.Cipher,
-		securePaths: options.SecurePaths,
+		logger:             logger,
+		rawValues:          rawValues,
+		oldRawValues:       map[string]string{},
+		cipher:             options.Cipher,
+		securePaths:        options.SecurePaths,
 		lastEncryptedValue: map[string]string{},
 	}, nil
 }
 
 type OpenEnvOptions struct {
 	Format      string
-	Data        []byte
+	Reader      io.Reader
 	Cipher      SimpleCipher
 	SecurePaths map[string]bool
 	LogLevel    logger.LogLevel
 }
 
 func Open(options OpenEnvOptions) (*EnvFile, error) {
-	encryptedValues, err := parseEnvFile(options.Format, options.Data)
+	encryptedValues, err := orderedmap.Parse(options.Format, options.Reader)
 	if err != nil {
 		return nil, err
 	}
 
 	env := &EnvFile{
-		logger:       logger.New(options.LogLevel),
-		rawValues:    map[string]interface{}{},
-		oldRawValues: map[string]string{},
-		cipher:       options.Cipher,
-		securePaths: options.SecurePaths,
+		logger: logger.New(options.LogLevel),
+		rawValues: orderedmap.OrderedMap{
+			KeyOrder: encryptedValues.KeyOrder,
+			Values:   make(map[string]interface{}, len(encryptedValues.KeyOrder["."])),
+		},
+		oldRawValues:       map[string]string{},
+		cipher:             options.Cipher,
+		securePaths:        options.SecurePaths,
 		lastEncryptedValue: map[string]string{},
 	}
 
@@ -108,7 +81,7 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 		val, err := readPath(
 			path,
 			"",
-			encryptedValues,
+			encryptedValues.Values,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to initialize lastEncryptedValues: %s", err)
@@ -117,8 +90,8 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 	}
 
 	err = env.encryptOrDecryptPaths(
-		encryptedValues,
-		env.rawValues,
+		encryptedValues.Values,
+		env.rawValues.Values,
 		"",
 		func(path, encrypted string) (string, error) {
 			dec, err := options.Cipher.Decrypt(encrypted)
@@ -201,37 +174,8 @@ func readPath(path, currentPath string, values map[string]interface{}) (string, 
 	return "", fmt.Errorf("No value found at: %s", path)
 }
 
-func (env *EnvFile) Set(path, value string) error {
-	if path[0] != '.' {
-		return fmt.Errorf("Invalid key path: %s", path)
-	}
-
-	targetMap := env.rawValues
-	pathBits := strings.Split(path, ".")[1:]
-	currentPath := "."
-
-	for _, step := range pathBits[:len(pathBits)-1] {
-		currentPath += "." + step
-		v, ok := targetMap[step]
-		if ok {
-			nextMap, isMap := v.(map[string]interface{})
-			if !isMap {
-				return fmt.Errorf("Non-map value (of type %T) found at %s: %#v", v, currentPath, v)
-			}
-			targetMap = nextMap
-		} else {
-			nextMap := make(map[string]interface{})
-			targetMap[step] = nextMap
-			targetMap = nextMap
-		}
-	}
-
-	targetMap[pathBits[len(pathBits)-1]] = value
-	return nil
-}
-
-func (env *EnvFile) UpdateFrom(format string, data []byte) error {
-	updatedValues, err := parseEnvFile(format, data)
+func (env *EnvFile) UpdateFrom(format string, reader io.Reader) error {
+	updatedValues, err := orderedmap.Parse(format, reader)
 	if err != nil {
 		return err
 	}
@@ -240,17 +184,20 @@ func (env *EnvFile) UpdateFrom(format string, data []byte) error {
 }
 
 func (env *EnvFile) exportWithMapper(format string, mapValue func(string, string) (string, error)) ([]byte, error) {
-	encrypted := make(map[string]interface{})
+	encrypted := orderedmap.OrderedMap{
+		KeyOrder: env.rawValues.KeyOrder,
+		Values:   make(map[string]interface{}),
+	}
 	err := env.encryptOrDecryptPaths(
-		env.rawValues,
-		encrypted,
+		env.rawValues.Values,
+		encrypted.Values,
 		"",
 		mapValue,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return exportEnvFile(format, encrypted)
+	return encrypted.Export(format)
 }
 
 func (env *EnvFile) Export(format string) ([]byte, error) {

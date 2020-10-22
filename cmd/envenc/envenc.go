@@ -21,6 +21,10 @@ var (
 )
 
 func getFormatFromPath(path string) string {
+	if path[0] == '.' {
+		return "dotenv"
+	}
+
 	ext := path[strings.LastIndexByte(path, '.'):]
 	return ext
 }
@@ -75,11 +79,11 @@ func main() {
 			cmdEncrypt,
 			cmdDecrypt,
 			cmdEdit,
-			cmdSet,
 		},
 	}
 	err := app.Run(os.Args)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
 	}
 }

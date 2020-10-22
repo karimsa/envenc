@@ -1,14 +1,15 @@
 package envenc
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"testing"
-	"crypto/rand"
 
-	"gopkg.in/yaml.v2"
 	"github.com/karimsa/envenc/internal/logger"
+	"gopkg.in/yaml.v2"
 )
 
 type randCipher struct{}
@@ -41,7 +42,7 @@ func TestDecryptPaths(t *testing.T) {
 	env, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data:   []byte{},
+			Reader: bytes.NewReader([]byte{}),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".top": true,
@@ -87,7 +88,7 @@ func TestEncryptPaths(t *testing.T) {
 	env, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data:   []byte{},
+			Reader: bytes.NewReader([]byte{}),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".top": true,
@@ -135,7 +136,7 @@ func TestNewFromYAML(t *testing.T) {
 	handler, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data:   []byte("hello: world\na: test"),
+			Reader: bytes.NewReader([]byte("hello: world\na: test")),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".hello": true,
@@ -168,7 +169,7 @@ func TestNewFromYAML(t *testing.T) {
 	handler, err = Open(
 		OpenEnvOptions{
 			Format: "yaml",
-			Data:   data,
+			Reader: bytes.NewReader(data),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".hello": true,
@@ -214,11 +215,11 @@ func TestDiff(t *testing.T) {
 	handler, err := New(
 		NewEnvOptions{
 			Format: "yaml",
-			Data:   []byte("hello: world\na: test\nb: stuff\n"),
+			Reader: bytes.NewReader([]byte("hello: world\na: test\nb: stuff\n")),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".hello": true,
-				".a": true,
+				".a":     true,
 			},
 		},
 	)
@@ -243,11 +244,11 @@ func TestDiff(t *testing.T) {
 	handler, err = Open(
 		OpenEnvOptions{
 			Format: "yaml",
-			Data:   data,
+			Reader: bytes.NewReader(data),
 			Cipher: &randCipher{},
 			SecurePaths: map[string]bool{
 				".hello": true,
-				".a": true,
+				".a":     true,
 			},
 			LogLevel: logger.LevelDebug,
 		},
@@ -257,7 +258,7 @@ func TestDiff(t *testing.T) {
 		return
 	}
 
-	err = handler.UpdateFrom("yaml", []byte("hello: not-world\na: test\nb: stuff\n"))
+	err = handler.UpdateFrom("yaml", bytes.NewReader([]byte("hello: not-world\na: test\nb: stuff\n")))
 	if err != nil {
 		t.Error(err)
 		return
