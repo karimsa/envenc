@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/karimsa/envenc"
+	"github.com/karimsa/secrets"
 	"github.com/urfave/cli"
 )
 
@@ -48,7 +48,7 @@ var cmdDecrypt = cli.Command{
 			return err
 		}
 
-		envFile, err := envenc.Open(envenc.OpenEnvOptions{
+		envFile, err := secrets.Open(secrets.OpenEnvOptions{
 			Format:      format,
 			Reader:      inFile,
 			Cipher:      cipher,

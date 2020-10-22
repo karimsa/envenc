@@ -1,4 +1,4 @@
-module github.com/karimsa/envenc
+module github.com/karimsa/secrets
 
 go 1.15
 

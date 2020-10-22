@@ -1,12 +1,12 @@
-package envenc
+package secrets
 
 import (
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/karimsa/envenc/internal/logger"
-	"github.com/karimsa/envenc/internal/orderedmap"
+	"github.com/karimsa/secrets/internal/logger"
+	"github.com/karimsa/secrets/internal/orderedmap"
 )
 
 type SimpleCipher interface {

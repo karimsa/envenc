@@ -1,4 +1,4 @@
-package envenc
+package secrets
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/karimsa/envenc/internal/logger"
+	"github.com/karimsa/secrets/internal/logger"
 	"gopkg.in/yaml.v2"
 )
 

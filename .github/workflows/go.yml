@@ -27,7 +27,7 @@ jobs:
     - name: Build
       run: |
         go vet ./...
-        go build -o envenc ./cmd/envenc
+        go build -o secrets ./cmd/secrets
 
     - name: Test
       run: go test -v .

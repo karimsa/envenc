@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/howeyc/gopass"
-	"github.com/karimsa/envenc"
-	"github.com/karimsa/envenc/internal/encrypt"
-	"github.com/karimsa/envenc/internal/logger"
+	"github.com/karimsa/secrets"
+	"github.com/karimsa/secrets/internal/encrypt"
+	"github.com/karimsa/secrets/internal/logger"
 	"github.com/urfave/cli"
 )
 
@@ -62,7 +62,7 @@ func getFormatFromPath(path string) string {
 	return ext
 }
 
-func getCipher(ctx *cli.Context) (envenc.SimpleCipher, error) {
+func getCipher(ctx *cli.Context) (secrets.SimpleCipher, error) {
 	strategy := ctx.String("strategy")
 
 	if strategy == "symmetric" {
@@ -101,7 +101,7 @@ func getLogLevel(ctx *cli.Context) (logger.LogLevel, error) {
 
 func main() {
 	app := &cli.App{
-		Name:  "envenc",
+		Name:  "secrets",
 		Usage: "Manage secrets in config files.",
 		Commands: []cli.Command{
 			cmdEncrypt,

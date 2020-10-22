@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/karimsa/envenc"
+	"github.com/karimsa/secrets"
 	"github.com/urfave/cli"
 )
 
@@ -52,7 +52,7 @@ var cmdEdit = cli.Command{
 			securePaths[path] = true
 		}
 
-		envFile, err := envenc.Open(envenc.OpenEnvOptions{
+		envFile, err := secrets.Open(secrets.OpenEnvOptions{
 			Format:      format,
 			Reader:      inFile,
 			Cipher:      cipher,
