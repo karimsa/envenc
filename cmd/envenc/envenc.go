@@ -13,6 +13,39 @@ import (
 )
 
 var (
+	inFlag = &cli.StringFlag{
+		Name:     "in",
+		Usage:    "Path to the input file",
+		Required: true,
+		TakesFile: true,
+	}
+	outFlag = cli.StringFlag{
+		Name:     "out",
+		Usage:    "Path to the output file",
+		Required: true,
+		TakesFile: true,
+	}
+	formatFlag = cli.StringFlag{
+		Name:  "format",
+		Usage: "Format of the input and output files (json, yaml, dotenv)",
+		Value: "",
+	}
+	strategyFlag = cli.StringFlag{
+		Name:  "strategy",
+		Usage: "Encryption/decryption type (symmetric, asymmetric, or keyring)",
+		Value: "symmetric",
+	}
+	passphraseFlag = cli.StringFlag{
+		Name:  "unsafe-passphrase",
+		Usage: "Unsafely pass the passphrase for symmetric encryption",
+		Value: "",
+		EnvVar: "PASSPHRASE",
+	}
+	keyFlag = cli.StringSliceFlag{
+		Name:     "key",
+		Usage:    "Target key path to find secure value",
+		Required: true,
+	}
 	flagLogLevel = &cli.StringFlag{
 		Name:  "log-level",
 		Usage: "Increase logging verbosity (none, info, debug)",
@@ -33,13 +66,8 @@ func getCipher(ctx *cli.Context) (envenc.SimpleCipher, error) {
 	strategy := ctx.String("strategy")
 
 	if strategy == "symmetric" {
-		// 1) Read from flags
+		// 1) Read from flags + 2) Will read from 'ENVENC_PASSPHRASE' env variable
 		if pass := ctx.String("unsafe-passphrase"); len(pass) != 0 {
-			return encrypt.NewSymmetricCipher([]byte(pass)), nil
-		}
-
-		// 2) Read from env
-		if pass := os.Getenv("ENVENC_PASSPHRASE"); len(pass) != 0 {
 			return encrypt.NewSymmetricCipher([]byte(pass)), nil
 		}
 

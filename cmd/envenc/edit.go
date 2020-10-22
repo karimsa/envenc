@@ -14,31 +14,11 @@ var cmdEdit = cli.Command{
 	Name:  "edit",
 	Usage: "Edit a file with encrypted values",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:     "in",
-			Usage:    "Path to the input file",
-			Required: true,
-		},
-		&cli.StringFlag{
-			Name:  "format",
-			Usage: "Format of the input and output files (json, yaml, dotenv)",
-			Value: "",
-		},
-		&cli.StringFlag{
-			Name:  "strategy",
-			Usage: "Encryption/decryption type (symmetric, asymmetric, or keyring)",
-			Value: "symmetric",
-		},
-		&cli.StringFlag{
-			Name:  "unsafe-passphrase",
-			Usage: "Unsafely pass the passphrase for symmetric encryption",
-			Value: "",
-		},
-		&cli.StringSliceFlag{
-			Name:     "key",
-			Usage:    "Target key path to find secure value",
-			Required: true,
-		},
+		inFlag,
+		formatFlag,
+		strategyFlag,
+		passphraseFlag,
+		keyFlag,
 		&cli.StringFlag{
 			Name:   "editor",
 			Usage:  "Text editor to open for temporary file",
