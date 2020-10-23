@@ -58,6 +58,10 @@ HELLO=64745a1f754b45bb60c40e14c04ead39afb0d774e9f25f90459de9f714da3ed19c94063e79
 HI=INSECURE-WORLD
 ```
 
+**Edit config file then re-encrypt changed values**
+
+![Edit example gif](.github/examples/edit.gif)
+
 ## License
 
 Licensed under [MIT](LICENSE) license.
