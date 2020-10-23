@@ -12,7 +12,7 @@ import (
 func TestParseYAML(t *testing.T) {
 	doc, err := Parse("yaml", bytes.NewReader([]byte("# this comment should be preserved\nhello: world\na: test\n")))
 	if err != nil {
-		t.Error(err)
+		t.Error(fmt.Errorf("%s: %#v", err, doc))
 		return
 	}
 
@@ -28,7 +28,7 @@ func TestParseYAML(t *testing.T) {
 
 	buff, err := doc.Export("yaml")
 	if err != nil {
-		t.Error(err)
+		t.Error(fmt.Errorf("%s: %#v", err, doc))
 		return
 	}
 

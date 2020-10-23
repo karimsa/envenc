@@ -25,7 +25,7 @@ func (om OrderedMap) addKey(path, key string) {
 func (om OrderedMap) Export(format string) ([]byte, error) {
 	switch format {
 	case "yaml":
-		doc, err := om.toMapSlice("", om.Values)
+		doc, err := om.toMapSlice(".", om.Values)
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +48,7 @@ func (om OrderedMap) toMapSlice(currentPath string, currentMap map[string]interf
 
 	keys, keysExist := om.KeyOrder[currentPath]
 	if !keysExist {
-		return mapSlice, fmt.Errorf("Failed to find key order at %s", currentPath)
+		return mapSlice, fmt.Errorf("Failed to find key order at '%s'", currentPath)
 	}
 	if len(keys) != len(currentMap) {
 		return mapSlice, fmt.Errorf("Found mismatched map size at %s: %d != %d", currentPath, len(keys), len(currentMap))
@@ -75,32 +75,40 @@ func (om OrderedMap) toMapSlice(currentPath string, currentMap map[string]interf
 
 func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, currentPath string, currentMap map[string]interface{}) error {
 	for _, entry := range mapSlice {
-		key := entry.Key.(string)
-		keyPath := currentPath + "." + key
-		if currentPath == "." {
-			keyPath = keyPath[1:]
-		}
-		orderedMap.addKey(currentPath, key)
-
-		switch value := entry.Value.(type) {
-		case int:
-			currentMap[key] = value
-		case float64:
-			currentMap[key] = value
-		case bool:
-			currentMap[key] = value
+		switch key := entry.Key.(type) {
 		case string:
-			currentMap[key] = value
+			keyPath := currentPath + "." + key
+			if currentPath == "." {
+				keyPath = keyPath[1:]
+			}
+			orderedMap.addKey(currentPath, key)
 
-		case yaml.MapSlice:
-			nextMap := make(map[string]interface{}, len(value))
-			currentMap[key] = nextMap
-			if err := mapSliceToOrderedMap(value, orderedMap, keyPath, nextMap); err != nil {
-				return err
+			switch value := entry.Value.(type) {
+			case int:
+				currentMap[key] = value
+			case float64:
+				currentMap[key] = value
+			case bool:
+				currentMap[key] = value
+			case string:
+				currentMap[key] = value
+
+			case yaml.MapSlice:
+				nextMap := make(map[string]interface{}, len(value))
+				currentMap[key] = nextMap
+				if err := mapSliceToOrderedMap(value, orderedMap, keyPath, nextMap); err != nil {
+					return err
+				}
+
+			default:
+				return fmt.Errorf("Unrecognized type %T at %s: %#v", value, keyPath, value)
 			}
 
+		case nil:
+			// skip nil keys
+
 		default:
-			return fmt.Errorf("Unrecognized type %T at %s: %#v", value, keyPath, value)
+			return fmt.Errorf("Unexpected key of type %T at %s: %#v", key, currentPath, entry)
 		}
 	}
 

@@ -30,4 +30,4 @@ jobs:
         go build -o secrets ./cmd/secrets
 
     - name: Test
-      run: go test -v .
+      run: go test -v ./...
