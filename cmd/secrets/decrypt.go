@@ -5,12 +5,13 @@ import (
 	"os"
 
 	"github.com/karimsa/secrets"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
-var cmdDecrypt = cli.Command{
-	Name:  "decrypt",
-	Usage: "Decrypt values from a config file",
+var cmdDecrypt = &cli.Command{
+	Name:    "decrypt",
+	Aliases: []string{"dec"},
+	Usage:   "Decrypt values from a config file",
 	Flags: []cli.Flag{
 		inFlag,
 		formatFlag,

@@ -7,10 +7,10 @@ import (
 	"os/exec"
 
 	"github.com/karimsa/secrets"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
-var cmdEdit = cli.Command{
+var cmdEdit = &cli.Command{
 	Name:  "edit",
 	Usage: "Edit a file with encrypted values",
 	Flags: []cli.Flag{
@@ -20,10 +20,10 @@ var cmdEdit = cli.Command{
 		passphraseFlag,
 		keyFlag,
 		&cli.StringFlag{
-			Name:   "editor",
-			Usage:  "Text editor to open for temporary file",
-			EnvVar: "EDITOR",
-			Value:  "vi",
+			Name:    "editor",
+			Usage:   "Text editor to open for temporary file",
+			EnvVars: []string{"EDITOR"},
+			Value:   "vi",
 		},
 		flagLogLevel,
 	},

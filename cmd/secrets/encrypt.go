@@ -5,12 +5,13 @@ import (
 	"os"
 
 	"github.com/karimsa/secrets"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
-var cmdEncrypt = cli.Command{
-	Name:  "encrypt",
-	Usage: "Encrypt values in a given file",
+var cmdEncrypt = &cli.Command{
+	Name:    "encrypt",
+	Aliases: []string{"enc"},
+	Usage:   "Encrypt values in a given file",
 	Flags: []cli.Flag{
 		inFlag,
 		outFlag,

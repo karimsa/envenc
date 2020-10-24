@@ -9,40 +9,45 @@ import (
 	"github.com/karimsa/secrets"
 	"github.com/karimsa/secrets/internal/encrypt"
 	"github.com/karimsa/secrets/internal/logger"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var (
-	inFlag = &cli.StringFlag{
+	inFlag = &cli.PathFlag{
 		Name:      "in",
+		Aliases:   []string{"i"},
 		Usage:     "Path to the input file",
 		Required:  true,
 		TakesFile: true,
 	}
-	outFlag = cli.StringFlag{
+	outFlag = &cli.PathFlag{
 		Name:      "out",
+		Aliases:   []string{"o"},
 		Usage:     "Path to the output file",
 		Required:  true,
 		TakesFile: true,
 	}
-	formatFlag = cli.StringFlag{
-		Name:  "format",
-		Usage: "Format of the input and output files (json, yaml, dotenv)",
-		Value: "",
+	formatFlag = &cli.StringFlag{
+		Name:    "format",
+		Aliases: []string{"f"},
+		Usage:   "Format of the input and output files (json, yaml, dotenv)",
+		Value:   "",
 	}
-	strategyFlag = cli.StringFlag{
-		Name:  "strategy",
-		Usage: "Encryption/decryption type (symmetric, asymmetric, or keyring)",
-		Value: "symmetric",
+	strategyFlag = &cli.StringFlag{
+		Name:    "strategy",
+		Aliases: []string{"s"},
+		Usage:   "Encryption/decryption type (symmetric, asymmetric, or keyring)",
+		Value:   "symmetric",
 	}
-	passphraseFlag = cli.StringFlag{
-		Name:   "unsafe-passphrase",
-		Usage:  "Unsafely pass the passphrase for symmetric encryption",
-		Value:  "",
-		EnvVar: "PASSPHRASE",
+	passphraseFlag = &cli.StringFlag{
+		Name:    "unsafe-passphrase",
+		Usage:   "Unsafely pass the passphrase for symmetric encryption",
+		Value:   "",
+		EnvVars: []string{"PASSPHRASE"},
 	}
-	keyFlag = cli.StringSliceFlag{
+	keyFlag = &cli.StringSliceFlag{
 		Name:     "key",
+		Aliases:  []string{"k"},
 		Usage:    "Target key path to find secure value",
 		Required: true,
 	}
@@ -103,7 +108,7 @@ func main() {
 	app := &cli.App{
 		Name:  "secrets",
 		Usage: "Manage secrets in config files.",
-		Commands: []cli.Command{
+		Commands: []*cli.Command{
 			cmdEncrypt,
 			cmdDecrypt,
 			cmdEdit,
