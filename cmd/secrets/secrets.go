@@ -115,7 +115,7 @@ func main() {
 		},
 		Authors: []*cli.Author{
 			&cli.Author{
-				Name: "Karim Alibhai",
+				Name:  "Karim Alibhai",
 				Email: "karim@alibhai.co",
 			},
 		},
