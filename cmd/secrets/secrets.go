@@ -113,6 +113,13 @@ func main() {
 			cmdDecrypt,
 			cmdEdit,
 		},
+		Authors: []*cli.Author{
+			&cli.Author{
+				Name: "Karim Alibhai",
+				Email: "karim@alibhai.co",
+			},
+		},
+		Copyright: "(C) 2020-present Karim Alibhai",
 	}
 	err := app.Run(os.Args)
 	if err != nil {
