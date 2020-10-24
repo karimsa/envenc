@@ -14,15 +14,15 @@ import (
 
 var (
 	inFlag = &cli.StringFlag{
-		Name:     "in",
-		Usage:    "Path to the input file",
-		Required: true,
+		Name:      "in",
+		Usage:     "Path to the input file",
+		Required:  true,
 		TakesFile: true,
 	}
 	outFlag = cli.StringFlag{
-		Name:     "out",
-		Usage:    "Path to the output file",
-		Required: true,
+		Name:      "out",
+		Usage:     "Path to the output file",
+		Required:  true,
 		TakesFile: true,
 	}
 	formatFlag = cli.StringFlag{
@@ -36,9 +36,9 @@ var (
 		Value: "symmetric",
 	}
 	passphraseFlag = cli.StringFlag{
-		Name:  "unsafe-passphrase",
-		Usage: "Unsafely pass the passphrase for symmetric encryption",
-		Value: "",
+		Name:   "unsafe-passphrase",
+		Usage:  "Unsafely pass the passphrase for symmetric encryption",
+		Value:  "",
 		EnvVar: "PASSPHRASE",
 	}
 	keyFlag = cli.StringSliceFlag{

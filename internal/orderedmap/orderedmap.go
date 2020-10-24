@@ -43,6 +43,56 @@ func (om OrderedMap) Export(format string) ([]byte, error) {
 	}
 }
 
+func pathJoin(path, key string) string {
+	if path == "" {
+		return key
+	}
+
+	keyPath := path + "." + key
+	if keyPath[len(keyPath)-1] == '.' {
+		keyPath = keyPath[:len(keyPath)-1]
+	}
+	if keyPath[0:2] == ".." {
+		keyPath = keyPath[1:]
+	}
+	return keyPath
+}
+
+func (om OrderedMap) toMapItem(val interface{}, key string, currentPath string, currentMap map[string]interface{}) (yaml.MapItem, error) {
+	mapItem := yaml.MapItem{
+		Key: key,
+	}
+	keyPath := pathJoin(currentPath, key)
+
+	if subMap, isMap := val.(map[string]interface{}); isMap {
+		subMS, err := om.toMapSlice(keyPath, subMap)
+		if err != nil {
+			return mapItem, err
+		}
+		mapItem.Value = subMS
+	} else if subList, isList := val.([]interface{}); isList {
+		outList := make([]interface{}, len(subList))
+		mapItem.Value = outList
+
+		for i, elm := range subList {
+			subSlice, err := om.toMapItem(
+				elm,
+				"",
+				fmt.Sprintf("%s[%d]", keyPath, i),
+				currentMap,
+			)
+			if err != nil {
+				return mapItem, err
+			}
+			outList[i] = subSlice.Value
+		}
+	} else {
+		mapItem.Value = val
+	}
+
+	return mapItem, nil
+}
+
 func (om OrderedMap) toMapSlice(currentPath string, currentMap map[string]interface{}) (yaml.MapSlice, error) {
 	mapSlice := make(yaml.MapSlice, len(currentMap))
 
@@ -55,54 +105,78 @@ func (om OrderedMap) toMapSlice(currentPath string, currentMap map[string]interf
 	}
 
 	for i, key := range keys {
-		mapSlice[i] = yaml.MapItem{
-			Key: key,
+		res, err := om.toMapItem(
+			currentMap[key],
+			key,
+			currentPath,
+			currentMap,
+		)
+		if err != nil {
+			return mapSlice, err
 		}
-
-		if subMap, isMap := currentMap[key].(map[string]interface{}); isMap {
-			subMS, err := om.toMapSlice(currentPath+"."+key, subMap)
-			if err != nil {
-				return mapSlice, err
-			}
-			mapSlice[i].Value = subMS
-		} else {
-			mapSlice[i].Value = currentMap[key]
-		}
+		mapSlice[i] = res
 	}
 
 	return mapSlice, nil
+}
+
+func copyValue(anyVal interface{}, orderedMap OrderedMap, keyPath string, currentMap map[string]interface{}) (interface{}, error) {
+	switch value := anyVal.(type) {
+	case int:
+		return value, nil
+	case float64:
+		return value, nil
+	case bool:
+		return value, nil
+	case string:
+		return value, nil
+
+	case []interface{}:
+		nextSlice := make([]interface{}, len(value))
+		for i, elm := range value {
+			res, err := copyValue(
+				elm,
+				orderedMap,
+				fmt.Sprintf("%s[%d]", keyPath, i),
+				currentMap,
+			)
+			if err != nil {
+				return nil, err
+			}
+			nextSlice[i] = res
+		}
+		return nextSlice, nil
+
+	case yaml.MapSlice:
+		nextMap := make(map[string]interface{}, len(value))
+		return nextMap, mapSliceToOrderedMap(
+			value,
+			orderedMap,
+			keyPath,
+			nextMap,
+		)
+	}
+
+	return nil, fmt.Errorf("Unrecognized value of type %T at %s: %#v", anyVal, keyPath, anyVal)
 }
 
 func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, currentPath string, currentMap map[string]interface{}) error {
 	for _, entry := range mapSlice {
 		switch key := entry.Key.(type) {
 		case string:
-			keyPath := currentPath + "." + key
-			if currentPath == "." {
-				keyPath = keyPath[1:]
-			}
+			keyPath := pathJoin(currentPath, key)
 			orderedMap.addKey(currentPath, key)
 
-			switch value := entry.Value.(type) {
-			case int:
-				currentMap[key] = value
-			case float64:
-				currentMap[key] = value
-			case bool:
-				currentMap[key] = value
-			case string:
-				currentMap[key] = value
-
-			case yaml.MapSlice:
-				nextMap := make(map[string]interface{}, len(value))
-				currentMap[key] = nextMap
-				if err := mapSliceToOrderedMap(value, orderedMap, keyPath, nextMap); err != nil {
-					return err
-				}
-
-			default:
-				return fmt.Errorf("Unrecognized type %T at %s: %#v", value, keyPath, value)
+			res, err := copyValue(
+				entry.Value,
+				orderedMap,
+				keyPath,
+				currentMap,
+			)
+			if err != nil {
+				return err
 			}
+			currentMap[key] = res
 
 		case nil:
 			// skip nil keys

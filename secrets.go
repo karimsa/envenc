@@ -89,9 +89,8 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 		env.lastEncryptedValue[path] = val
 	}
 
-	err = env.encryptOrDecryptPaths(
+	res, err := env.encryptOrDecryptPaths(
 		encryptedValues.Values,
-		env.rawValues.Values,
 		"",
 		func(path, encrypted string) (string, error) {
 			dec, err := options.Cipher.Decrypt(encrypted)
@@ -106,56 +105,56 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	env.rawValues.Values = res.(map[string]interface{})
 
 	return env, nil
 }
 
-func (env *EnvFile) encryptOrDecryptPaths(input, output map[string]interface{}, currentPath string, mapValue func(string, string) (string, error)) error {
-	for key, value := range input {
-		keyPath := currentPath + "." + key
-		strVal, isStr := value.(string)
-
-		if isStr {
-			if _, ok := env.securePaths[keyPath]; ok {
-				encrypted, err := mapValue(keyPath, strVal)
-				if err != nil {
-					return err
-				}
-				output[key] = encrypted
-			} else {
-				env.logger.Debugf("Skipping encrypt at: %s", keyPath)
-				output[key] = strVal
+func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath string, mapValue func(string, string) (string, error)) (interface{}, error) {
+	switch input := untypedInput.(type) {
+	case map[string]interface{}:
+		env.logger.Debugf("Copying map at %s\n", currentPath)
+		mapCopy := make(map[string]interface{}, len(input))
+		for key, val := range input {
+			res, err := env.encryptOrDecryptPaths(
+				val,
+				fmt.Sprintf("%s.%s", currentPath, key),
+				mapValue,
+			)
+			if err != nil {
+				return nil, err
 			}
-		} else {
-			switch v := value.(type) {
-			case float64:
-				env.logger.Debugf("Copying value at: %s", keyPath)
-				output[key] = value
-			case bool:
-				env.logger.Debugf("Copying value at: %s", keyPath)
-				output[key] = value
-
-			case map[string]interface{}:
-				outputMap := make(map[string]interface{})
-				output[key] = outputMap
-
-				err := env.encryptOrDecryptPaths(
-					v,
-					outputMap,
-					keyPath,
-					mapValue,
-				)
-				if err != nil {
-					return err
-				}
-
-			default:
-				return fmt.Errorf("Unexpected %T at path: %s (%#v)", value, keyPath, value)
-			}
+			mapCopy[key] = res
 		}
-	}
+		return mapCopy, nil
 
-	return nil
+	case []interface{}:
+		env.logger.Debugf("Copying slice at %s\n", currentPath)
+		sliceCopy := make([]interface{}, len(input))
+		for i, elm := range input {
+			res, err := env.encryptOrDecryptPaths(
+				elm,
+				fmt.Sprintf("%s[%d]", currentPath, i),
+				mapValue,
+			)
+			if err != nil {
+				return nil, err
+			}
+			sliceCopy[i] = res
+		}
+		return sliceCopy, nil
+
+	case string:
+		env.logger.Debugf("Encrypting value at %s\n", currentPath)
+		if _, ok := env.securePaths[currentPath]; ok {
+			return mapValue(currentPath, input)
+		}
+		return input, nil
+
+	default:
+		env.logger.Debugf("Copying value at %s\n", currentPath)
+		return input, nil
+	}
 }
 
 func readPath(path, currentPath string, values map[string]interface{}) (string, error) {
@@ -188,15 +187,15 @@ func (env *EnvFile) exportWithMapper(format string, mapValue func(string, string
 		KeyOrder: env.rawValues.KeyOrder,
 		Values:   make(map[string]interface{}),
 	}
-	err := env.encryptOrDecryptPaths(
+	res, err := env.encryptOrDecryptPaths(
 		env.rawValues.Values,
-		encrypted.Values,
 		"",
 		mapValue,
 	)
 	if err != nil {
 		return nil, err
 	}
+	encrypted.Values = res.(map[string]interface{})
 	return encrypted.Export(format)
 }
 

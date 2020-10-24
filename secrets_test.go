@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/karimsa/secrets/internal/logger"
@@ -23,7 +24,21 @@ func (*randCipher) Encrypt(str string) (string, error) {
 	return hex.EncodeToString(b) + ":" + str, nil
 }
 func (*randCipher) Decrypt(str string) (string, error) {
+	if len(str) < 9 {
+		return "", fmt.Errorf("Cannot decrypt using randCipher: %s", str)
+	}
 	return str[9:], nil
+}
+
+type badCipher struct{}
+
+func (badCipher) Encrypt(str string) (string, error) {
+	return fmt.Sprintf("encrypt(%s)", str), nil
+}
+func (badCipher) Decrypt(str string) (string, error) {
+	str = str[len("encrypt("):]
+	str = str[:len(str)-1]
+	return str, nil
 }
 
 func TestDecryptPaths(t *testing.T) {
@@ -37,7 +52,6 @@ func TestDecryptPaths(t *testing.T) {
 		"top": text,
 		"a":   "b",
 	}
-	output := map[string]interface{}{}
 
 	env, err := New(
 		NewEnvOptions{
@@ -54,9 +68,8 @@ func TestDecryptPaths(t *testing.T) {
 		return
 	}
 
-	err = env.encryptOrDecryptPaths(
+	_, err = env.encryptOrDecryptPaths(
 		input,
-		output,
 		"",
 		func(_, val string) (string, error) {
 			return (&randCipher{}).Decrypt(val)
@@ -93,6 +106,7 @@ func TestEncryptPaths(t *testing.T) {
 			SecurePaths: map[string]bool{
 				".top": true,
 			},
+			LogLevel: logger.LevelDebug,
 		},
 	)
 	if err != nil {
@@ -101,9 +115,8 @@ func TestEncryptPaths(t *testing.T) {
 	}
 
 	output := make(map[string]interface{})
-	err = env.encryptOrDecryptPaths(
+	res, err := env.encryptOrDecryptPaths(
 		input,
-		output,
 		"",
 		func(_, val string) (string, error) {
 			return (&randCipher{}).Encrypt(val)
@@ -113,6 +126,7 @@ func TestEncryptPaths(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
+	output = res.(map[string]interface{})
 
 	data, err := json.Marshal(output)
 	if err != nil {
@@ -127,8 +141,12 @@ func TestEncryptPaths(t *testing.T) {
 		return
 	}
 
-	if str, _ := (&randCipher{}).Decrypt(values["top"].(string)); str != "level" {
-		t.Error(fmt.Sprintf("Incorrectly encrypted: %s", string(data)))
+	if str, err := (&randCipher{}).Decrypt(values["top"].(string)); err != nil {
+		t.Error(err)
+		return
+	} else if str != "level" {
+		t.Error(fmt.Sprintf("Incorrectly encrypted: %s", data))
+		return
 	}
 }
 
@@ -286,6 +304,56 @@ func TestDiff(t *testing.T) {
 	}
 	if updatedVals["b"].(string) != encryptedVals["b"].(string) {
 		t.Error(fmt.Errorf("b value was updated, even though it is insecure"))
+		return
+	}
+}
+
+func TestNestedYAML(t *testing.T) {
+	configStr := strings.Join([]string{
+		"kind: List",
+		"spec:",
+		"- kind: ConfigMap",
+		"  data:",
+		"    HELLO: world",
+		"    TEST: foobar",
+	}, "\n")
+	handler, err := New(
+		NewEnvOptions{
+			Format: "yaml",
+			Reader: strings.NewReader(configStr),
+			Cipher: badCipher{},
+			SecurePaths: map[string]bool{
+				".spec[0].data.HELLO": true,
+			},
+		},
+	)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	data, err := handler.Export("yaml")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var values map[string]interface{}
+	err = yaml.Unmarshal(data, &values)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	if string(data) == strings.Join([]string{
+		"kind: List",
+		"spec:",
+		"- kind: ConfigMap",
+		"  data:",
+		"    HELLO: encrypt(world)",
+		"    TEST: foobar",
+	}, "\n") {
+		t.Error(fmt.Errorf("Incorrectly encrypted output file\n\n%s\n", data))
 		return
 	}
 }
