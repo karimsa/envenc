@@ -8,6 +8,9 @@
     <a href="https://github.com/karimsa/secrets/actions">
         <img src="https://github.com/karimsa/secrets/workflows/CI/badge.svg" alt="Build status" />
     </a>
+    <a href="https://github.com/karimsa/secrets/tags">
+        <img src="https://img.shields.io/github/v/tag/karimsa/secrets?color=blue&label=latest&sort=semver" />
+    </a>
 </p>
 
 Manage secrets in configuration files.
