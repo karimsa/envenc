@@ -157,20 +157,55 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 	}
 }
 
-func readPath(path, currentPath string, values map[string]interface{}) (string, error) {
-	for key, val := range values {
-		keyPath := currentPath + "." + key
-		if keyPath == path {
-			strVal, isStr := val.(string)
-			if isStr {
-				return strVal, nil
+type KeyNotFoundError struct {
+	msg string
+}
+
+func newKeyNotFoundError(path string) KeyNotFoundError {
+	return KeyNotFoundError{
+		msg: fmt.Sprintf("No value found at: %s", path),
+	}
+}
+func (k KeyNotFoundError) Error() string {
+	return k.msg
+}
+func isKeyNotFound(err error) bool {
+	_, ok := err.(KeyNotFoundError)
+	return ok
+}
+
+func readPath(path, currentPath string, values interface{}) (string, error) {
+	fmt.Printf("path: %s, currentPath: %s, values: %+v\n", path, currentPath, values)
+
+	switch v := values.(type) {
+	case map[string]interface{}:
+		for key, val := range v {
+			keyPath := currentPath + "." + key
+			if keyPath == path {
+				strVal, isStr := val.(string)
+				if isStr {
+					return strVal, nil
+				}
+				return "", fmt.Errorf("Found %T at %s: %#v", val, path, val)
+			} else if res, err := readPath(path, keyPath, val); !isKeyNotFound(err) {
+				return res, err
 			}
-			return "", fmt.Errorf("Found %T at %s: %#v", val, path, val)
-		} else if subMap, isMap := val.(map[string]interface{}); isMap {
-			return readPath(path, keyPath, subMap)
+		}
+
+	case []interface{}:
+		for idx, item := range v {
+			val, err := readPath(
+				path,
+				fmt.Sprintf("%s[%d]", currentPath, idx),
+				item,
+			)
+			if !isKeyNotFound(err) {
+				return val, err
+			}
 		}
 	}
-	return "", fmt.Errorf("No value found at: %s", path)
+
+	return "", newKeyNotFoundError(path)
 }
 
 func (env *EnvFile) UpdateFrom(format string, reader io.Reader) error {

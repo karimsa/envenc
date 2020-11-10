@@ -356,4 +356,39 @@ func TestNestedYAML(t *testing.T) {
 		t.Error(fmt.Errorf("Incorrectly encrypted output file\n\n%s\n", data))
 		return
 	}
+
+	// Re-open/decrypt
+	handler, err = Open(
+		OpenEnvOptions{
+			Format: "yaml",
+			Reader: bytes.NewReader(data),
+			Cipher: &badCipher{},
+			SecurePaths: map[string]bool{
+				".spec[0].data.HELLO": true,
+			},
+			LogLevel: logger.LevelDebug,
+		},
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	data, err = handler.UnsafeRawExport("yaml")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if string(data) == strings.Join([]string{
+		"kind: List",
+		"spec:",
+		"- kind: ConfigMap",
+		"  data:",
+		"    HELLO: world",
+		"    TEST: foobar",
+	}, "\n") {
+		t.Error(fmt.Errorf("Incorrectly decrypted file\n\n%s\n", data))
+		return
+	}
 }
