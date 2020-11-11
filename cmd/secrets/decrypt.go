@@ -2,11 +2,18 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/karimsa/secrets"
 	"github.com/urfave/cli/v2"
 )
+
+var decOutFlag = &*outFlag
+
+func init() {
+	decOutFlag.Required = false
+}
 
 var cmdDecrypt = &cli.Command{
 	Name:    "decrypt",
@@ -14,6 +21,7 @@ var cmdDecrypt = &cli.Command{
 	Usage:   "Decrypt values from a config file",
 	Flags: []cli.Flag{
 		inFlag,
+		decOutFlag,
 		formatFlag,
 		strategyFlag,
 		passphraseFlag,
@@ -23,6 +31,7 @@ var cmdDecrypt = &cli.Command{
 	Action: func(ctx *cli.Context) error {
 		format := ctx.String("format")
 		inPath := ctx.String("in")
+		outPath := ctx.String("out")
 		inputPaths := ctx.StringSlice("key")
 
 		if format == "" {
@@ -65,8 +74,18 @@ var cmdDecrypt = &cli.Command{
 			return err
 		}
 
-		// For decryption, always write to stderr
-		fmt.Fprintf(os.Stderr, string(buff))
+		switch outPath {
+		case "":
+			fallthrough
+		case "/dev/stdout":
+			fmt.Printf("%s\n", string(buff))
+		case "/dev/stderr":
+			fmt.Fprintf(os.Stderr, "%s\n", string(buff))
+		default:
+			if err := ioutil.WriteFile(outPath, buff, os.ModeExclusive); err != nil {
+				return err
+			}
+		}
 
 		return nil
 	},
