@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -59,12 +60,21 @@ var (
 )
 
 func getFormatFromPath(path string) string {
+	var format string
+
 	if path[0] == '.' {
-		return "dotenv"
+		format = "dotenv"
 	}
 
-	ext := path[strings.LastIndexByte(path, '.'):]
-	return ext
+	ext := path[strings.LastIndexByte(path, '.')+1:]
+	if ext == "yml" {
+		format = "yaml"
+	} else {
+		format = ext
+	}
+
+	log.Printf("Using format: %s", format)
+	return format
 }
 
 func getCipher(ctx *cli.Context) (secrets.SimpleCipher, error) {
