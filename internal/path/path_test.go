@@ -1,8 +1,8 @@
 package path
 
 import (
-	"io"
 	"fmt"
+	"io"
 	"testing"
 )
 
@@ -48,6 +48,24 @@ func TestPathParsing(t *testing.T) {
 
 	if _, _, err = nextToken(str); err != io.EOF {
 		t.Error(fmt.Errorf("Unexpected error: %s (expected EOF)", err))
+		return
+	}
+}
+
+func TestMapRead(t *testing.T) {
+	v, err := ReadFrom(".spec[0].data", map[string]interface{}{
+		"spec": []interface{}{
+			map[string]interface{}{
+				"data": "testing",
+			},
+		},
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if v != "testing" {
+		t.Error(fmt.Errorf("Wrong value read from map: %s", v))
 		return
 	}
 }
