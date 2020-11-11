@@ -7,6 +7,7 @@ import (
 
 	"github.com/karimsa/secrets/internal/logger"
 	"github.com/karimsa/secrets/internal/orderedmap"
+	pathReader "github.com/karimsa/secrets/internal/path"
 )
 
 type SimpleCipher interface {
@@ -78,11 +79,7 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 
 	// Populate lastEncryptedValue
 	for path, _ := range env.securePaths {
-		val, err := readPath(
-			path,
-			"",
-			encryptedValues.Values,
-		)
+		val, err := pathReader.ReadFrom(path, encryptedValues.Values)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to initialize lastEncryptedValues: %s", err)
 		}
@@ -155,57 +152,6 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 		env.logger.Debugf("Copying value at %s\n", currentPath)
 		return input, nil
 	}
-}
-
-type KeyNotFoundError struct {
-	msg string
-}
-
-func newKeyNotFoundError(path string) KeyNotFoundError {
-	return KeyNotFoundError{
-		msg: fmt.Sprintf("No value found at: %s", path),
-	}
-}
-func (k KeyNotFoundError) Error() string {
-	return k.msg
-}
-func isKeyNotFound(err error) bool {
-	_, ok := err.(KeyNotFoundError)
-	return ok
-}
-
-func readPath(path, currentPath string, values interface{}) (string, error) {
-	fmt.Printf("path: %s, currentPath: %s, values: %+v\n", path, currentPath, values)
-
-	switch v := values.(type) {
-	case map[string]interface{}:
-		for key, val := range v {
-			keyPath := currentPath + "." + key
-			if keyPath == path {
-				strVal, isStr := val.(string)
-				if isStr {
-					return strVal, nil
-				}
-				return "", fmt.Errorf("Found %T at %s: %#v", val, path, val)
-			} else if res, err := readPath(path, keyPath, val); !isKeyNotFound(err) {
-				return res, err
-			}
-		}
-
-	case []interface{}:
-		for idx, item := range v {
-			val, err := readPath(
-				path,
-				fmt.Sprintf("%s[%d]", currentPath, idx),
-				item,
-			)
-			if !isKeyNotFound(err) {
-				return val, err
-			}
-		}
-	}
-
-	return "", newKeyNotFoundError(path)
 }
 
 func (env *EnvFile) UpdateFrom(format string, reader io.Reader) error {
