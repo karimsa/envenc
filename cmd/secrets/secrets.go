@@ -89,16 +89,13 @@ func getInputPaths(ctx *cli.Context) ([]string, error) {
 		for {
 			line, err := reader.ReadString('\n')
 			line = strings.TrimSpace(line)
-			if line == "" {
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return nil, err
-				}
-			} else {
+			if line != "" && line[0] != '#' {
 				l.Debugf("Read key from file: %s", line)
 				keys = append(keys, line)
+			} else if err == io.EOF {
+				break
+			} else if err != nil {
+				return nil, err
 			}
 		}
 	}
