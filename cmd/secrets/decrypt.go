@@ -26,13 +26,18 @@ var cmdDecrypt = &cli.Command{
 		strategyFlag,
 		passphraseFlag,
 		keyFlag,
+		keyFileFlag,
 		flagLogLevel,
 	},
 	Action: func(ctx *cli.Context) error {
 		format := ctx.String("format")
 		inPath := ctx.String("in")
 		outPath := ctx.String("out")
-		inputPaths := ctx.StringSlice("key")
+		
+		inputPaths, err := getInputPaths(ctx)
+		if err != nil {
+			return err
+		}
 
 		if format == "" {
 			format = getFormatFromPath(inPath)

@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"io"
 	"os"
 	"strings"
+	"bufio"
 
 	"github.com/howeyc/gopass"
 	"github.com/karimsa/secrets"
@@ -50,7 +52,10 @@ var (
 		Name:     "key",
 		Aliases:  []string{"k"},
 		Usage:    "Target key path to find secure value",
-		Required: true,
+	}
+	keyFileFlag = &cli.StringFlag{
+		Name: "key-file",
+		Usage: "Load list of keys from a NL-delimited file",
 	}
 	flagLogLevel = &cli.StringFlag{
 		Name:  "log-level",
@@ -58,6 +63,49 @@ var (
 		Value: "none",
 	}
 )
+
+func getInputPaths(ctx *cli.Context) ([]string, error) {
+	keys := ctx.StringSlice("key")
+	keyFile := ctx.String("key-file")
+
+	level, err := getLogLevel(ctx)
+	if err != nil {
+		return nil, err
+	}
+	l := logger.New(level)
+
+	if keys == nil {
+		if keyFile == "" {
+			return nil, fmt.Errorf("You must specifiy either --key or --key-file")
+		}
+
+		keys = make([]string, 0, 10)
+		fd, err := os.Open(keyFile)
+		if err != nil {
+			return nil, err
+		}
+
+		reader := bufio.NewReader(fd)
+		for {
+			line, err := reader.ReadString('\n')
+			line = strings.TrimSpace(line)
+			if line == "" {
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				l.Debugf("Read key from file: %s", line)
+				keys = append(keys, line)
+			}
+		}
+	}
+
+	l.Debugf("Loaded keys: %+v", keys)
+	return keys, nil
+}
 
 func getFormatFromPath(path string) string {
 	var format string

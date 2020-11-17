@@ -19,6 +19,7 @@ var cmdEdit = &cli.Command{
 		strategyFlag,
 		passphraseFlag,
 		keyFlag,
+		keyFileFlag,
 		&cli.StringFlag{
 			Name:    "editor",
 			Usage:   "Text editor to open for temporary file",
@@ -30,8 +31,12 @@ var cmdEdit = &cli.Command{
 	Action: func(ctx *cli.Context) error {
 		format := ctx.String("format")
 		inPath := ctx.String("in")
-		inputPaths := ctx.StringSlice("key")
 		editor := ctx.String("editor")
+
+		inputPaths, err := getInputPaths(ctx)
+		if err != nil {
+			return err
+		}
 
 		if format == "" {
 			format = getFormatFromPath(inPath)
