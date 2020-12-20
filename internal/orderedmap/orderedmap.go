@@ -2,12 +2,15 @@ package orderedmap
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
 	"regexp"
 	"strings"
+
+	orderedJson "github.com/iancoleman/orderedmap"
 )
 
 type OrderedMap struct {
@@ -38,6 +41,13 @@ func (om OrderedMap) Export(format string) ([]byte, error) {
 		}
 		return []byte(output), nil
 
+	case "json":
+		doc, err := om.toJSON(".", om.Values)
+		if err != nil {
+			return nil, err
+		}
+		return json.MarshalIndent(doc, "", "\t")
+
 	default:
 		return nil, fmt.Errorf("Unsupported export format: %s", format)
 	}
@@ -56,6 +66,54 @@ func pathJoin(path, key string) string {
 		keyPath = keyPath[1:]
 	}
 	return keyPath
+}
+
+func (om OrderedMap) toJSONItem(val interface{}, currentPath string) interface{} {
+	switch v := val.(type) {
+	case []interface{}:
+		sliceCopy := make([]interface{}, len(v))
+		for i, elm := range v {
+			sliceCopy[i] = om.toJSONItem(
+				elm,
+				fmt.Sprintf("%s[%d]", currentPath, i),
+			)
+		}
+		return sliceCopy
+
+	case map[string]interface{}:
+		outJson := orderedJson.New()
+		for key, elm := range v {
+			outJson.Set(key, om.toJSONItem(
+				elm,
+				fmt.Sprintf("%s.%s", currentPath, key),
+			))
+		}
+		return outJson
+
+	default:
+		return v
+	}
+}
+
+func (om OrderedMap) toJSON(currentPath string, currentMap map[string]interface{}) (*orderedJson.OrderedMap, error) {
+	outJson := orderedJson.New()
+
+	keys, keysExist := om.KeyOrder[currentPath]
+	if !keysExist {
+		return outJson, fmt.Errorf("Failed to find key order at '%s'", currentPath)
+	}
+	if len(keys) != len(currentMap) {
+		return outJson, fmt.Errorf("Found mismatched map size at %s: %d != %d", currentPath, len(keys), len(currentMap))
+	}
+
+	for _, key := range keys {
+		outJson.Set(key, om.toJSONItem(
+			currentMap[key],
+			fmt.Sprintf("%s.%s", currentPath, key),
+		))
+	}
+
+	return outJson, nil
 }
 
 func (om OrderedMap) toMapItem(val interface{}, key string, currentPath string, currentMap map[string]interface{}) (yaml.MapItem, error) {
@@ -160,6 +218,55 @@ func copyValue(anyVal interface{}, orderedMap OrderedMap, keyPath string, curren
 	return nil, fmt.Errorf("Unrecognized value of type %T at %s: %#v", anyVal, keyPath, anyVal)
 }
 
+func copyJSONValue(anyVal interface{}, orderedMap OrderedMap, keyPath string, currentMap map[string]interface{}) (interface{}, error) {
+	switch value := anyVal.(type) {
+	case int:
+		return value, nil
+	case float64:
+		return value, nil
+	case bool:
+		return value, nil
+	case string:
+		return value, nil
+
+	case []interface{}:
+		nextSlice := make([]interface{}, len(value))
+		for i, elm := range value {
+			res, err := copyValue(
+				elm,
+				orderedMap,
+				fmt.Sprintf("%s[%d]", keyPath, i),
+				currentMap,
+			)
+			if err != nil {
+				return nil, err
+			}
+			nextSlice[i] = res
+		}
+		return nextSlice, nil
+
+	case *orderedJson.OrderedMap:
+		nextMap := make(map[string]interface{}, len(value.Keys()))
+		return nextMap, jsonToOrderedMap(
+			value,
+			orderedMap,
+			keyPath,
+			nextMap,
+		)
+
+	case orderedJson.OrderedMap:
+		nextMap := make(map[string]interface{}, len(value.Keys()))
+		return nextMap, jsonToOrderedMap(
+			&value,
+			orderedMap,
+			keyPath,
+			nextMap,
+		)
+	}
+
+	return nil, fmt.Errorf("Unrecognized value of type %T at %s: %#v", anyVal, keyPath, anyVal)
+}
+
 func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, currentPath string, currentMap map[string]interface{}) error {
 	for _, entry := range mapSlice {
 		switch key := entry.Key.(type) {
@@ -189,11 +296,47 @@ func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, current
 	return nil
 }
 
+func jsonToOrderedMap(om *orderedJson.OrderedMap, orderedMap OrderedMap, currentPath string, currentMap map[string]interface{}) error {
+	for _, key := range om.Keys() {
+		keyPath := pathJoin(currentPath, key)
+		orderedMap.addKey(currentPath, key)
+		value, _ := om.Get(key)
+
+		res, err := copyJSONValue(
+			value,
+			orderedMap,
+			keyPath,
+			currentMap,
+		)
+		if err != nil {
+			return err
+		}
+		currentMap[key] = res
+	}
+
+	return nil
+}
+
 var (
 	supportedFormats = map[string]func(io.Reader) (OrderedMap, error){
-		// json cannot be supported right now, not until this issue is dealt
-		// with: https://github.com/golang/go/issues/27179
-		// or a custom/third-party parser is used
+		"json": func(reader io.Reader) (OrderedMap, error) {
+			doc := OrderedMap{
+				KeyOrder: make(map[string][]string, 0),
+				Values:   make(map[string]interface{}, 0),
+			}
+			om := orderedJson.New()
+
+			buffer, err := ioutil.ReadAll(reader)
+			if err != nil {
+				return doc, err
+			}
+
+			if err := json.Unmarshal(buffer, &om); err != nil {
+				return doc, err
+			}
+
+			return doc, jsonToOrderedMap(om, doc, ".", doc.Values)
+		},
 
 		"dotenv": func(reader io.Reader) (OrderedMap, error) {
 			doc := OrderedMap{

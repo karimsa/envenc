@@ -33,7 +33,7 @@ var cmdDecrypt = &cli.Command{
 		format := ctx.String("format")
 		inPath := ctx.String("in")
 		outPath := ctx.String("out")
-		
+
 		inputPaths, err := getInputPaths(ctx)
 		if err != nil {
 			return err

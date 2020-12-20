@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"log"
 	"io"
+	"log"
 	"os"
 	"strings"
-	"bufio"
 
 	"github.com/howeyc/gopass"
 	"github.com/karimsa/secrets"
@@ -49,12 +49,12 @@ var (
 		EnvVars: []string{"PASSPHRASE"},
 	}
 	keyFlag = &cli.StringSliceFlag{
-		Name:     "key",
-		Aliases:  []string{"k"},
-		Usage:    "Target key path to find secure value",
+		Name:    "key",
+		Aliases: []string{"k"},
+		Usage:   "Target key path to find secure value",
 	}
 	keyFileFlag = &cli.StringFlag{
-		Name: "key-file",
+		Name:  "key-file",
 		Usage: "Load list of keys from a NL-delimited file",
 	}
 	flagLogLevel = &cli.StringFlag{
