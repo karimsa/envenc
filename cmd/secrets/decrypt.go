@@ -87,9 +87,7 @@ var cmdDecrypt = &cli.Command{
 		case "/dev/stderr":
 			fmt.Fprintf(os.Stderr, "%s\n", string(buff))
 		default:
-			if err := ioutil.WriteFile(outPath, buff, os.ModeExclusive); err != nil {
-				return err
-			}
+			return ioutil.WriteFile(outPath, buff, 0600)
 		}
 
 		return nil

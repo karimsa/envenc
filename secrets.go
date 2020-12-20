@@ -207,7 +207,7 @@ func (env *EnvFile) ExportFile(format, path string, flag int) error {
 		return err
 	}
 
-	outFile, err := os.OpenFile(path, flag|os.O_TRUNC, 0755)
+	outFile, err := os.OpenFile(path, flag|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
