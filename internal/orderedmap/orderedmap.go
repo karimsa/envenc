@@ -18,11 +18,26 @@ type OrderedMap struct {
 	Values   map[string]interface{}
 }
 
-func (om OrderedMap) addKey(path, key string) {
+func sliceContains(list []string, elm string) bool {
+	for _, v := range list {
+		if v == elm {
+			return true
+		}
+	}
+	return false
+}
+
+func (om OrderedMap) addKey(path, key string) error {
 	if om.KeyOrder[path] == nil {
 		om.KeyOrder[path] = make([]string, 0, 10)
 	}
+
+	if sliceContains(om.KeyOrder[path], key) {
+		return fmt.Errorf("duplicate key found at %s: %s", path, key)
+	}
+
 	om.KeyOrder[path] = append(om.KeyOrder[path], key)
+	return nil
 }
 
 func (om OrderedMap) Export(format string) ([]byte, error) {
@@ -272,7 +287,9 @@ func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, current
 		switch key := entry.Key.(type) {
 		case string:
 			keyPath := pathJoin(currentPath, key)
-			orderedMap.addKey(currentPath, key)
+			if err := orderedMap.addKey(currentPath, key); err != nil {
+				return err
+			}
 
 			res, err := copyValue(
 				entry.Value,
@@ -299,7 +316,9 @@ func mapSliceToOrderedMap(mapSlice yaml.MapSlice, orderedMap OrderedMap, current
 func jsonToOrderedMap(om *orderedJson.OrderedMap, orderedMap OrderedMap, currentPath string, currentMap map[string]interface{}) error {
 	for _, key := range om.Keys() {
 		keyPath := pathJoin(currentPath, key)
-		orderedMap.addKey(currentPath, key)
+		if err := orderedMap.addKey(currentPath, key); err != nil {
+			return err
+		}
 		value, _ := om.Get(key)
 
 		res, err := copyJSONValue(
