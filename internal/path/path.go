@@ -38,14 +38,22 @@ func nextToken(str string) (token, string, error) {
 			idx += string(str[i])
 		}
 
-		intIdx, err := strconv.ParseInt(idx, 10, 64)
-		if err != nil {
-			return tok, str, fmt.Errorf("Unexpected non-integer '%s' in: '%s'", idx, str)
+		if len(idx) == 0 {
+			return tok, str, fmt.Errorf("Unexpected empty key")
 		}
-		if intIdx < 0 {
-			return tok, str, fmt.Errorf("Unexpected negative index '%d' in: '%s'", intIdx, str)
+
+		if idx[0] == idx[len(idx)-1] && (idx[0] == '"' || idx[0] == '\'') {
+			tok.key = idx[1 : len(idx)-1]
+		} else {
+			intIdx, err := strconv.ParseInt(idx, 10, 64)
+			if err != nil {
+				return tok, str, fmt.Errorf("Unexpected non-integer '%s' in: '%s'", idx, str)
+			}
+			if intIdx < 0 {
+				return tok, str, fmt.Errorf("Unexpected negative index '%d' in: '%s'", intIdx, str)
+			}
+			tok.index = int(intIdx)
 		}
-		tok.index = int(intIdx)
 
 	default:
 		return tok, str, fmt.Errorf("Unexpected '%s' in: '%s'", string(str[i]), str)

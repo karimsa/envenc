@@ -69,3 +69,35 @@ func TestMapRead(t *testing.T) {
 		return
 	}
 }
+
+func TestPathParseStringKeyDoubleQuote(t *testing.T) {
+	v, err := ReadFrom(".test[\".nested.key\"]", map[string]interface{}{
+		"test": map[string]interface{}{
+			".nested.key": "testing",
+		},
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if v != "testing" {
+		t.Error(fmt.Errorf("Wrong value read from map: %s", v))
+		return
+	}
+}
+
+func TestPathParseStringKeySingleQuote(t *testing.T) {
+	v, err := ReadFrom(".test['.nested.key']", map[string]interface{}{
+		"test": map[string]interface{}{
+			".nested.key": "testing",
+		},
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if v != "testing" {
+		t.Error(fmt.Errorf("Wrong value read from map: %s", v))
+		return
+	}
+}
