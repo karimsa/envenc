@@ -122,6 +122,26 @@ func New(strPath string) (Path, error) {
 	}, nil
 }
 
+func (path Path) AppendKey(key string) Path {
+	return Path{
+		tokens: append(path.tokens, token{
+			tokenType: tokenKey,
+			key:       key,
+		}),
+		asString: fmt.Sprintf("%s['%s']", path.String(), key),
+	}
+}
+
+func (path Path) AppendIndex(index int) Path {
+	return Path{
+		tokens: append(path.tokens, token{
+			tokenType: tokenIndex,
+			index:     index,
+		}),
+		asString: fmt.Sprintf("%s[%d]", path.String(), index),
+	}
+}
+
 func (path Path) Equals(compared Path) bool {
 	if len(path.tokens) != len(compared.tokens) {
 		return false

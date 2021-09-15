@@ -112,14 +112,14 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 
 	res, err := env.encryptOrDecryptPaths(
 		encryptedValues.Values,
-		"",
-		func(path, encrypted string) (string, error) {
+		pathReader.Path{},
+		func(path pathReader.Path, encrypted string) (string, error) {
 			dec, err := options.Cipher.Decrypt(encrypted)
 			if err != nil {
 				return "", err
 			}
 
-			env.oldRawValues[path] = dec
+			env.oldRawValues[path.String()] = dec
 			return dec, nil
 		},
 	)
@@ -131,12 +131,7 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 	return env, nil
 }
 
-func (env *EnvFile) isSecurePath(comparedStr string) bool {
-	compared, err := pathReader.New(comparedStr)
-	if err != nil {
-		return false
-	}
-
+func (env *EnvFile) isSecurePath(compared pathReader.Path) bool {
 	for _, path := range env.securePaths {
 		if path.Equals(compared) {
 			fmt.Printf("%s = %s\n", path, compared)
@@ -147,7 +142,21 @@ func (env *EnvFile) isSecurePath(comparedStr string) bool {
 	return false
 }
 
-func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath string, mapValue func(string, string) (string, error)) (interface{}, error) {
+func (env *EnvFile) getLastEncryptedValue(path pathReader.Path) (string, bool) {
+	for storedPath, value := range env.lastEncryptedValue {
+		storedPathParsed, err := pathReader.New(storedPath)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse existing path: %s", storedPath))
+		}
+
+		if path.Equals(storedPathParsed) {
+			return value, true
+		}
+	}
+	return "", false
+}
+
+func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath pathReader.Path, mapValue func(pathReader.Path, string) (string, error)) (interface{}, error) {
 	switch input := untypedInput.(type) {
 	case map[string]interface{}:
 		env.logger.Debugf("Copying map at %s\n", currentPath)
@@ -155,7 +164,7 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 		for key, val := range input {
 			res, err := env.encryptOrDecryptPaths(
 				val,
-				fmt.Sprintf("%s['%s']", currentPath, key),
+				currentPath.AppendKey(key),
 				mapValue,
 			)
 			if err != nil {
@@ -171,7 +180,7 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 		for i, elm := range input {
 			res, err := env.encryptOrDecryptPaths(
 				elm,
-				fmt.Sprintf("%s[%d]", currentPath, i),
+				currentPath.AppendIndex(i),
 				mapValue,
 			)
 			if err != nil {
@@ -205,14 +214,14 @@ func (env *EnvFile) UpdateFrom(format string, reader io.Reader) error {
 	return nil
 }
 
-func (env *EnvFile) exportWithMapper(format string, mapValue func(string, string) (string, error)) ([]byte, error) {
+func (env *EnvFile) exportWithMapper(format string, mapValue func(pathReader.Path, string) (string, error)) ([]byte, error) {
 	encrypted := orderedmap.OrderedMap{
 		KeyOrder: env.rawValues.KeyOrder,
 		Values:   make(map[string]interface{}),
 	}
 	res, err := env.encryptOrDecryptPaths(
 		env.rawValues.Values,
-		"",
+		pathReader.Path{},
 		mapValue,
 	)
 	if err != nil {
@@ -223,22 +232,27 @@ func (env *EnvFile) exportWithMapper(format string, mapValue func(string, string
 }
 
 func (env *EnvFile) Export(format string) ([]byte, error) {
-	return env.exportWithMapper(format, func(path, val string) (string, error) {
-		oldVal, ok := env.oldRawValues[path]
-		lastEnc, hasEnc := env.lastEncryptedValue[path]
+	return env.exportWithMapper(format, func(path pathReader.Path, val string) (string, error) {
+		oldVal, ok := env.oldRawValues[path.String()]
+		lastEnc, hasEnc := env.getLastEncryptedValue(path)
 
 		if ok && hasEnc && val == oldVal {
 			env.logger.Debugf("Keeping value at: %s (unchanged)", path)
 			return lastEnc, nil
 		}
 
-		env.logger.Debugf("Re-encrypting value at: %s (changed)", path)
+		reason := "added"
+		if hasEnc {
+			reason = "changed"
+		}
+
+		env.logger.Debugf("Re-encrypting value at: %s (%s)", path, reason)
 		return env.cipher.Encrypt(val)
 	})
 }
 
 func (env *EnvFile) UnsafeRawExport(format string) ([]byte, error) {
-	return env.exportWithMapper(format, func(path, val string) (string, error) {
+	return env.exportWithMapper(format, func(path pathReader.Path, val string) (string, error) {
 		return val, nil
 	})
 }

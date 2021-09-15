@@ -26,7 +26,7 @@ var cmdEncrypt = &cli.Command{
 		format := ctx.String("format")
 		inPath := ctx.String("in")
 
-		inputPaths, err := getInputPaths(ctx)
+		securePaths, err := getInputPaths(ctx)
 		if err != nil {
 			return err
 		}
@@ -48,11 +48,6 @@ var cmdEncrypt = &cli.Command{
 		logLevel, err := getLogLevel(ctx)
 		if err != nil {
 			return err
-		}
-
-		securePaths := make(map[string]bool, len(inputPaths))
-		for _, path := range inputPaths {
-			securePaths[path] = true
 		}
 
 		envFile, err := secrets.New(secrets.NewEnvOptions{

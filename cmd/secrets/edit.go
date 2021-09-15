@@ -33,7 +33,7 @@ var cmdEdit = &cli.Command{
 		inPath := ctx.String("in")
 		editor := ctx.String("editor")
 
-		inputPaths, err := getInputPaths(ctx)
+		securePaths, err := getInputPaths(ctx)
 		if err != nil {
 			return err
 		}
@@ -50,11 +50,6 @@ var cmdEdit = &cli.Command{
 		cipher, err := getCipher(ctx)
 		if err != nil {
 			return err
-		}
-
-		securePaths := make(map[string]bool, len(inputPaths))
-		for _, path := range inputPaths {
-			securePaths[path] = true
 		}
 
 		envFile, err := secrets.Open(secrets.OpenEnvOptions{

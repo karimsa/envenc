@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/karimsa/secrets/internal/logger"
+	pathReader "github.com/karimsa/secrets/internal/path"
 	"gopkg.in/yaml.v2"
 )
 
@@ -70,8 +71,8 @@ func TestDecryptPaths(t *testing.T) {
 
 	_, err = env.encryptOrDecryptPaths(
 		input,
-		"",
-		func(_, val string) (string, error) {
+		pathReader.Path{},
+		func(_ pathReader.Path, val string) (string, error) {
 			return (&randCipher{}).Decrypt(val)
 		},
 	)
@@ -117,8 +118,8 @@ func TestEncryptPaths(t *testing.T) {
 	output := make(map[string]interface{})
 	res, err := env.encryptOrDecryptPaths(
 		input,
-		"",
-		func(_, val string) (string, error) {
+		pathReader.Path{},
+		func(_ pathReader.Path, val string) (string, error) {
 			return (&randCipher{}).Encrypt(val)
 		},
 	)
@@ -216,7 +217,7 @@ func TestNewFromYAML(t *testing.T) {
 	}
 
 	// Test export raw
-	data, err = handler.exportWithMapper("yaml", func(_, val string) (string, error) {
+	data, err = handler.exportWithMapper("yaml", func(_ pathReader.Path, val string) (string, error) {
 		return val, nil
 	})
 	if err != nil {

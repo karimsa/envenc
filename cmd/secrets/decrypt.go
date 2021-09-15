@@ -34,7 +34,7 @@ var cmdDecrypt = &cli.Command{
 		inPath := ctx.String("in")
 		outPath := ctx.String("out")
 
-		inputPaths, err := getInputPaths(ctx)
+		securePaths, err := getInputPaths(ctx)
 		if err != nil {
 			return err
 		}
@@ -51,11 +51,6 @@ var cmdDecrypt = &cli.Command{
 		cipher, err := getCipher(ctx)
 		if err != nil {
 			return err
-		}
-
-		securePaths := make(map[string]bool, len(inputPaths))
-		for _, path := range inputPaths {
-			securePaths[path] = true
 		}
 
 		logLevel, err := getLogLevel(ctx)
