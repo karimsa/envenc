@@ -58,8 +58,8 @@ func TestDecryptPaths(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader([]byte{}),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".top": true,
+			SecurePaths: []string{
+				".top",
 			},
 		},
 	)
@@ -103,8 +103,8 @@ func TestEncryptPaths(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader([]byte{}),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".top": true,
+			SecurePaths: []string{
+				".top",
 			},
 			LogLevel: logger.LevelDebug,
 		},
@@ -156,8 +156,8 @@ func TestNewFromYAML(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader([]byte("hello: world\na: test")),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".hello": true,
+			SecurePaths: []string{
+				".hello",
 			},
 		},
 	)
@@ -189,8 +189,8 @@ func TestNewFromYAML(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader(data),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".hello": true,
+			SecurePaths: []string{
+				".hello",
 			},
 		},
 	)
@@ -235,9 +235,9 @@ func TestDiff(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader([]byte("hello: world\na: test\nb: stuff\n")),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".hello": true,
-				".a":     true,
+			SecurePaths: []string{
+				".hello",
+				".a",
 			},
 		},
 	)
@@ -264,9 +264,9 @@ func TestDiff(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader(data),
 			Cipher: &randCipher{},
-			SecurePaths: map[string]bool{
-				".hello": true,
-				".a":     true,
+			SecurePaths: []string{
+				".hello",
+				".a",
 			},
 			LogLevel: logger.LevelDebug,
 		},
@@ -308,6 +308,26 @@ func TestDiff(t *testing.T) {
 	}
 }
 
+func assertSliceEqual(t *testing.T, left []string, right []string) string {
+	if strings.Join(left, "\n") != strings.Join(right, "\n") {
+		diff := make([]string, 0, len(left)+len(right))
+		for i := range left {
+			if i < len(right) {
+				if left[i] != right[i] {
+					diff = append(diff, fmt.Sprintf("- %s", left[i]), fmt.Sprintf("+ %s", right[i]))
+				} else {
+					diff = append(diff, left[i])
+				}
+			} else {
+				diff = append(diff, fmt.Sprintf("- %s", left[i]))
+			}
+		}
+
+		return strings.Join(diff, "\n")
+	}
+	return ""
+}
+
 func TestNestedYAML(t *testing.T) {
 	configStr := strings.Join([]string{
 		"kind: List",
@@ -316,15 +336,20 @@ func TestNestedYAML(t *testing.T) {
 		"  data:",
 		"    HELLO: world",
 		"    TEST: foobar",
+		"    .key.with.dots.single.quote: floof",
+		"    .key.with.dots.double.quote: fluffernutter",
 	}, "\n")
 	handler, err := New(
 		NewEnvOptions{
 			Format: "yaml",
 			Reader: strings.NewReader(configStr),
 			Cipher: badCipher{},
-			SecurePaths: map[string]bool{
-				".spec[0].data.HELLO": true,
+			SecurePaths: []string{
+				".spec[0].data.HELLO",
+				".spec[0].data['.key.with.dots.single.quote']",
+				".spec[0].data['.key.with.dots.double.quote']",
 			},
+			LogLevel: logger.LevelDebug,
 		},
 	)
 	if err != nil {
@@ -345,15 +370,18 @@ func TestNestedYAML(t *testing.T) {
 		return
 	}
 
-	if string(data) == strings.Join([]string{
+	if diff := assertSliceEqual(t, strings.Split(string(data), "\n"), []string{
 		"kind: List",
 		"spec:",
 		"- kind: ConfigMap",
 		"  data:",
 		"    HELLO: encrypt(world)",
 		"    TEST: foobar",
-	}, "\n") {
-		t.Error(fmt.Errorf("Incorrectly encrypted output file\n\n%s\n", data))
+		"    .key.with.dots.single.quote: encrypt(floof)",
+		"    .key.with.dots.double.quote: encrypt(fluffernutter)",
+		"",
+	}); diff != "" {
+		t.Error(fmt.Errorf("Incorrectly encrypted output file\n\n%s\n", diff))
 		return
 	}
 
@@ -363,8 +391,10 @@ func TestNestedYAML(t *testing.T) {
 			Format: "yaml",
 			Reader: bytes.NewReader(data),
 			Cipher: &badCipher{},
-			SecurePaths: map[string]bool{
-				".spec[0].data.HELLO": true,
+			SecurePaths: []string{
+				".spec[0].data.HELLO",
+				".spec[0].data['.key.with.dots.single.quote']",
+				".spec[0].data['.key.with.dots.double.quote']",
 			},
 			LogLevel: logger.LevelDebug,
 		},
@@ -380,15 +410,18 @@ func TestNestedYAML(t *testing.T) {
 		return
 	}
 
-	if string(data) == strings.Join([]string{
+	if diff := assertSliceEqual(t, strings.Split(string(data), "\n"), []string{
 		"kind: List",
 		"spec:",
 		"- kind: ConfigMap",
 		"  data:",
 		"    HELLO: world",
 		"    TEST: foobar",
-	}, "\n") {
-		t.Error(fmt.Errorf("Incorrectly decrypted file\n\n%s\n", data))
+		"    .key.with.dots.single.quote: floof",
+		"    .key.with.dots.double.quote: fluffernutter",
+		"",
+	}); diff != "" {
+		t.Error(fmt.Errorf("Incorrectly decrypted file\n\n%s\n", diff))
 		return
 	}
 }

@@ -20,7 +20,7 @@ type EnvFile struct {
 	rawValues          orderedmap.OrderedMap
 	oldRawValues       map[string]string
 	cipher             SimpleCipher
-	securePaths        map[string]bool
+	securePaths        []pathReader.Path
 	lastEncryptedValue map[string]string
 }
 
@@ -29,7 +29,21 @@ type NewEnvOptions struct {
 	Reader      io.Reader
 	Cipher      SimpleCipher
 	LogLevel    logger.LogLevel
-	SecurePaths map[string]bool
+	SecurePaths []string
+}
+
+func makeSecurePaths(paths []string) ([]pathReader.Path, error) {
+	var err error
+	parsedPaths := make([]pathReader.Path, len(paths))
+
+	for i, strPath := range paths {
+		parsedPaths[i], err = pathReader.New(strPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return parsedPaths, nil
 }
 
 func New(options NewEnvOptions) (*EnvFile, error) {
@@ -41,12 +55,17 @@ func New(options NewEnvOptions) (*EnvFile, error) {
 	logger := logger.New(options.LogLevel)
 	logger.Debugf("Log level set to %d\n", options.LogLevel)
 
+	securePaths, err := makeSecurePaths(options.SecurePaths)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EnvFile{
 		logger:             logger,
 		rawValues:          rawValues,
 		oldRawValues:       map[string]string{},
 		cipher:             options.Cipher,
-		securePaths:        options.SecurePaths,
+		securePaths:        securePaths,
 		lastEncryptedValue: map[string]string{},
 	}, nil
 }
@@ -55,12 +74,17 @@ type OpenEnvOptions struct {
 	Format      string
 	Reader      io.Reader
 	Cipher      SimpleCipher
-	SecurePaths map[string]bool
+	SecurePaths []string
 	LogLevel    logger.LogLevel
 }
 
 func Open(options OpenEnvOptions) (*EnvFile, error) {
 	encryptedValues, err := orderedmap.Parse(options.Format, options.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	securePaths, err := makeSecurePaths(options.SecurePaths)
 	if err != nil {
 		return nil, err
 	}
@@ -73,17 +97,17 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 		},
 		oldRawValues:       map[string]string{},
 		cipher:             options.Cipher,
-		securePaths:        options.SecurePaths,
+		securePaths:        securePaths,
 		lastEncryptedValue: map[string]string{},
 	}
 
 	// Populate lastEncryptedValue
-	for path, _ := range env.securePaths {
-		val, err := pathReader.ReadFrom(path, encryptedValues.Values)
+	for _, path := range env.securePaths {
+		val, err := path.ReadFrom(encryptedValues.Values)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to initialize lastEncryptedValues: %s", err)
 		}
-		env.lastEncryptedValue[path] = val
+		env.lastEncryptedValue[path.String()] = val
 	}
 
 	res, err := env.encryptOrDecryptPaths(
@@ -107,6 +131,22 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 	return env, nil
 }
 
+func (env *EnvFile) isSecurePath(comparedStr string) bool {
+	compared, err := pathReader.New(comparedStr)
+	if err != nil {
+		return false
+	}
+
+	for _, path := range env.securePaths {
+		if path.Equals(compared) {
+			fmt.Printf("%s = %s\n", path, compared)
+			return true
+		}
+	}
+
+	return false
+}
+
 func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath string, mapValue func(string, string) (string, error)) (interface{}, error) {
 	switch input := untypedInput.(type) {
 	case map[string]interface{}:
@@ -115,7 +155,7 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 		for key, val := range input {
 			res, err := env.encryptOrDecryptPaths(
 				val,
-				fmt.Sprintf("%s.%s", currentPath, key),
+				fmt.Sprintf("%s['%s']", currentPath, key),
 				mapValue,
 			)
 			if err != nil {
@@ -142,9 +182,11 @@ func (env *EnvFile) encryptOrDecryptPaths(untypedInput interface{}, currentPath 
 		return sliceCopy, nil
 
 	case string:
-		env.logger.Debugf("Encrypting value at %s\n", currentPath)
-		if _, ok := env.securePaths[currentPath]; ok {
+		if env.isSecurePath(currentPath) {
+			env.logger.Debugf("Encrypting value at %s (%s)\n", currentPath, input)
 			return mapValue(currentPath, input)
+		} else {
+			env.logger.Debugf("Skipping key %s, not a secure path: %#v\n", currentPath, env.securePaths)
 		}
 		return input, nil
 

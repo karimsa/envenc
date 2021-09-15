@@ -50,10 +50,21 @@ func TestPathParsing(t *testing.T) {
 		t.Error(fmt.Errorf("Unexpected error: %s (expected EOF)", err))
 		return
 	}
+
+	if _, err := New(".foo..bar"); err == nil {
+		t.Error(fmt.Errorf("Expected syntax error when parsing: .foo..bar"))
+		return
+	}
 }
 
 func TestMapRead(t *testing.T) {
-	v, err := ReadFrom(".spec[0].data", map[string]interface{}{
+	p, err := New(".spec[0].data")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	v, err := p.ReadFrom(map[string]interface{}{
 		"spec": []interface{}{
 			map[string]interface{}{
 				"data": "testing",
@@ -71,7 +82,12 @@ func TestMapRead(t *testing.T) {
 }
 
 func TestPathParseStringKeyDoubleQuote(t *testing.T) {
-	v, err := ReadFrom(".test[\".nested.key\"]", map[string]interface{}{
+	p, err := New(".test[\".nested.key\"]")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	v, err := p.ReadFrom(map[string]interface{}{
 		"test": map[string]interface{}{
 			".nested.key": "testing",
 		},
@@ -87,7 +103,12 @@ func TestPathParseStringKeyDoubleQuote(t *testing.T) {
 }
 
 func TestPathParseStringKeySingleQuote(t *testing.T) {
-	v, err := ReadFrom(".test['.nested.key']", map[string]interface{}{
+	p, err := New(".test['.nested.key']")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	v, err := p.ReadFrom(map[string]interface{}{
 		"test": map[string]interface{}{
 			".nested.key": "testing",
 		},
@@ -99,5 +120,47 @@ func TestPathParseStringKeySingleQuote(t *testing.T) {
 	if v != "testing" {
 		t.Error(fmt.Errorf("Wrong value read from map: %s", v))
 		return
+	}
+}
+
+func TestPathCompare(t *testing.T) {
+	p, err := New(".obj.nested['key']")
+	if err != nil {
+		t.Error(fmt.Errorf("Failed to parse testpath: %s", err))
+		return
+	}
+
+	equal := []string{
+		".obj.nested.key",
+		".['obj'].nested.key",
+		".obj['nested'].key",
+	}
+	for _, str := range equal {
+		compared, err := New(str)
+		if err != nil {
+			t.Error(fmt.Errorf("Failed to parse testpath '%s': %s", str, err))
+			return
+		}
+		if !p.Equals(compared) {
+			t.Error(fmt.Errorf("Failed to compare path: %s (should be equal)\n\npath => %#v\ncompared => %#v", str, p, compared))
+			return
+		}
+	}
+
+	notEqual := []string{
+		".obj.nested",
+		".['obj'].nested",
+		".obj['nested']",
+	}
+	for _, str := range notEqual {
+		compared, err := New(str)
+		if err != nil {
+			t.Error(fmt.Errorf("Failed to parse testpath '%s': %s", str, err))
+			return
+		}
+		if p.Equals(compared) {
+			t.Error(fmt.Errorf("Failed to compare path: %s (should not be equal)\n\npath => %#v\ncompared => %#v", str, p, compared))
+			return
+		}
 	}
 }
