@@ -134,11 +134,9 @@ func Open(options OpenEnvOptions) (*EnvFile, error) {
 func (env *EnvFile) isSecurePath(compared pathReader.Path) bool {
 	for _, path := range env.securePaths {
 		if path.Equals(compared) {
-			fmt.Printf("%s = %s\n", path, compared)
 			return true
 		}
 	}
-
 	return false
 }
 
