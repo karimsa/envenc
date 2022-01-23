@@ -166,6 +166,8 @@ func main() {
 		Commands: []*cli.Command{
 			cmdEncrypt,
 			cmdDecrypt,
+			cmdEncryptFile,
+			cmdDecryptFile,
 			cmdEdit,
 		},
 		Authors: []*cli.Author{
